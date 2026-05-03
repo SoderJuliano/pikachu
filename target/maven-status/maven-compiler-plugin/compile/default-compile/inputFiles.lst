@@ -1,0 +1,5 @@
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/Application.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/adapter/in/web/ChatController.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/model/ChatRequest.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/model/ChatResponse.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/ProcessChatUseCase.java
