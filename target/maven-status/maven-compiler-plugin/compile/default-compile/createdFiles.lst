@@ -1,5 +1,14 @@
 com/mcp/pikachu/domain/model/ChatResponse.class
-com/mcp/pikachu/domain/port/in/ProcessChatUseCase.class
+com/mcp/pikachu/domain/port/in/LlamaTinyUseCase.class
+com/mcp/pikachu/application/Gemma3Service.class
+com/mcp/pikachu/application/Llama3Service.class
+com/mcp/pikachu/domain/port/in/Llama3UseCase.class
+com/mcp/pikachu/adapter/in/web/GlobalExceptionHandler.class
 com/mcp/pikachu/Application.class
+com/mcp/pikachu/domain/port/in/Gemma3UseCase.class
 com/mcp/pikachu/adapter/in/web/ChatController.class
 com/mcp/pikachu/domain/model/ChatRequest.class
+com/mcp/pikachu/application/LlamaTinyService.class
+com/mcp/pikachu/adapter/out/ollama/OllamaClientAdapter.class
+com/mcp/pikachu/domain/port/out/LlmClientPort.class
+com/mcp/pikachu/domain/exception/ModelUnavailableException.class
