@@ -7,6 +7,7 @@ import com.mcp.pikachu.domain.model.ChatRequest;
 import com.mcp.pikachu.domain.port.in.Gemma3UseCase;
 import com.mcp.pikachu.domain.port.in.Llama3UseCase;
 import com.mcp.pikachu.domain.port.in.LlamaTinyUseCase;
+import com.mcp.pikachu.domain.port.in.Qwen25UseCase;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,6 +24,7 @@ public class ChatController {
     private final LlamaTinyUseCase llamaTinyUseCase;
     private final Llama3UseCase llama3UseCase;
     private final Gemma3UseCase gemma3UseCase;
+    private final Qwen25UseCase qwen25UseCase;
 
     @Operation(summary = "Generate text with TinyLlama")
     @PostMapping("/llamatiny")
@@ -43,5 +45,12 @@ public class ChatController {
     public ResponseEntity<String> gemma3(@RequestBody ChatRequest request) {
         log.info("Received gemma3 request");
         return ResponseEntity.ok(gemma3UseCase.execute(request));
+    }
+
+    @Operation(summary = "Generate text with Qwen2.5 7B Instruct")
+    @PostMapping("/qwen25")
+    public ResponseEntity<String> qwen25(@RequestBody ChatRequest request) {
+        log.info("Received qwen2.5 request");
+        return ResponseEntity.ok(qwen25UseCase.execute(request));
     }
 }

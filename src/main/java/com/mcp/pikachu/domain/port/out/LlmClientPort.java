@@ -9,4 +9,6 @@ public interface LlmClientPort {
 	String llama3Response(ChatRequest request);
 
 	String getGemmaResponse(ChatRequest request);
+
+	String qwen25Response(ChatRequest request);
 }

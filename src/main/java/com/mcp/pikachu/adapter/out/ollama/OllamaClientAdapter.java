@@ -47,6 +47,13 @@ public class OllamaClientAdapter implements LlmClientPort {
         return callOllama("gemma3-4b", request.prompt() + instruction);
     }
 
+    @Override
+    public String qwen25Response(ChatRequest request) {
+        log.info("Calling qwen2.5:7b-instruct via Ollama");
+        String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? "Responder em português." : "Answer in English.";
+        return callOllama("qwen2.5:7b-instruct", request.prompt() + instruction);
+    }
+
     private String callOllama(String model, String prompt) {
         try {
             Map<String, Object> body = new HashMap<>();
