@@ -2,6 +2,9 @@ spring:
   application:
     name: pikachu
 
+server:
+  port: 5300
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

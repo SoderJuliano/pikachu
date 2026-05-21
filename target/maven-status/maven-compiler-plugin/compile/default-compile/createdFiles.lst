@@ -9,6 +9,7 @@ com/mcp/pikachu/adapter/in/web/GlobalExceptionHandler.class
 com/mcp/pikachu/Application.class
 com/mcp/pikachu/domain/port/in/Gemma3UseCase.class
 com/mcp/pikachu/adapter/in/web/ChatController.class
+com/mcp/pikachu/adapter/in/web/OpenApiConfig.class
 com/mcp/pikachu/domain/model/ChatRequest.class
 com/mcp/pikachu/application/LlamaTinyService.class
 com/mcp/pikachu/adapter/out/ollama/OllamaClientAdapter.class
