@@ -9,6 +9,7 @@
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/LlamaStreamService.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/LlamaTinyService.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/Qwen25Service.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/Qwen36_17Service.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/exception/ModelUnavailableException.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/model/ChatRequest.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/model/ChatResponse.java
@@ -17,4 +18,6 @@
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/LlamaStreamUseCase.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/LlamaTinyUseCase.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/Qwen25UseCase.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/Qwen36_17bUseCase.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/out/LlmClientPort.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/infra/Interceptor.java

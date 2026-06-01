@@ -65,6 +65,13 @@ public class OllamaClientAdapter implements LlmClientPort {
         llama3StreamResponse(request, response);
     }
 
+    @Override
+    public String qwen36_17bResponse(ChatRequest request) {
+        log.info("Calling qwen3.6-17b via Ollama");
+        String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? "Responder em português." : "Answer in English.";
+        return callOllama("qwen3.6:27b", request.prompt() + instruction);
+    }
+
     private String callOllama(String model, String prompt) {
         try {
             Map<String, Object> body = new HashMap<>();

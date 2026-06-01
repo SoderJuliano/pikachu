@@ -16,4 +16,6 @@ public interface LlmClientPort {
 	String qwen25Response(ChatRequest request);
 
 	void llamaStreamResponse(ChatRequest request, HttpServletResponse response) throws IOException;
+
+	String qwen36_17bResponse(ChatRequest request);
 }

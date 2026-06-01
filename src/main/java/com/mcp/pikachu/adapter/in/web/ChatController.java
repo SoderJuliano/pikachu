@@ -63,4 +63,12 @@ public class ChatController {
     ) throws IOException {
         llamaStreamUseCase.llamaStream(request, response);
     }
+
+    @Operation(summary = "Heavy generating text with Qwen3.6 17B and image input")
+    @PostMapping(value = "/qwen3.6-17b")
+    public ResponseEntity<String> qwen36(@RequestBody ChatRequest request) {
+        log.info("Received qwen3.6 17B request");
+        // Implement the logic to handle the request and generate a response
+        return ResponseEntity.ok("Qwen3.6 17B response");
+    }
 }
