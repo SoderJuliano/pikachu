@@ -1,6 +1,9 @@
 package com.mcp.pikachu.domain.port.out;
 
 import com.mcp.pikachu.domain.model.ChatRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.io.IOException;
 
 public interface LlmClientPort {
 
@@ -11,4 +14,6 @@ public interface LlmClientPort {
 	String getGemmaResponse(ChatRequest request);
 
 	String qwen25Response(ChatRequest request);
+
+	void llamaStreamResponse(ChatRequest request, HttpServletResponse response) throws IOException;
 }

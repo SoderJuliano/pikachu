@@ -1,10 +1,15 @@
 package com.mcp.pikachu.adapter.out.ollama;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -54,6 +59,12 @@ public class OllamaClientAdapter implements LlmClientPort {
         return callOllama("qwen2.5:7b-instruct", request.prompt() + instruction);
     }
 
+    @Override
+    public void llamaStreamResponse(ChatRequest request, HttpServletResponse response) throws IOException {
+        log.info("Streaming llama3 response via Ollama");
+        llama3StreamResponse(request, response);
+    }
+
     private String callOllama(String model, String prompt) {
         try {
             Map<String, Object> body = new HashMap<>();
@@ -88,6 +99,115 @@ public class OllamaClientAdapter implements LlmClientPort {
         } catch (IOException e) {
             log.error("Failed to call Ollama [{}]: {}", model, e.getMessage());
             throw new ModelUnavailableException(model, e);
+        }
+    }
+
+    private void llama3StreamResponse(ChatRequest request, HttpServletResponse response) throws IOException {
+
+        // Flush automático no HTTP
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/event-stream");
+
+        PrintWriter writer = response.getWriter();
+
+        String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? " Responder em português." : " Answer in English.";
+        String fullPrompt = request.prompt() + instruction;
+
+        // Requisição
+        Map<String, Object> requestBodyMap = new HashMap<>();
+        requestBodyMap.put("model", "llama3");
+        requestBodyMap.put("prompt", fullPrompt);
+        requestBodyMap.put("stream", true);
+
+        String requestBody = objectMapper.writeValueAsString(requestBodyMap);
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.SECONDS)
+                .build();
+
+        Request httpRequest = new Request.Builder()
+                .url("http://localhost:11434/api/generate")
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(requestBody, MediaType.parse("application/json")))
+                .build();
+
+        try (Response ollamaResponse = client.newCall(httpRequest).execute()) {
+            if (!ollamaResponse.isSuccessful()) {
+                writer.write("event: error\ndata: Request failed " + ollamaResponse.code() + "\n\n");
+                writer.flush();
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(ollamaResponse.body().byteStream()));
+
+            String line;
+            StringBuilder fullResponse = new StringBuilder();
+            String previousToken = null;
+            boolean isFirstToken = true;
+
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+
+                // Cada linha do Ollama STREAM é um JSON
+                JsonNode jsonNode = objectMapper.readTree(line);
+                String token = jsonNode.path("response").asText();
+
+                if (!token.isEmpty()) {
+                    // ========== LÓGICA DE ESPAÇAMENTO FINAL ==========
+                    String processedToken = token;
+
+                    if (!isFirstToken && previousToken != null) {
+                        boolean tokenStartsWithSpace = token.matches("^\\s.*");
+                        boolean tokenIsPunctuation = token.matches("^[.,!?;:()\\[\\]`\"'\\-].*");
+                        boolean prevEndedWithSpace = previousToken.matches(".*\\s$");
+                        boolean prevWasPunctuation = previousToken.matches("^[`\"'(\\[]$");
+
+                        // Detecção de sub-palavras (sufixos)
+                        boolean tokenStartsWithLower = token.matches("^[a-zà-ÿ].*");
+                        boolean prevEndsWithLower = previousToken.matches(".*[a-zà-ÿ]$");
+
+                        // Palavras comuns PT-BR e EN-US que SEMPRE separam
+                        boolean prevIsCommonWord = previousToken.toLowerCase()
+                                .matches("a|o|e|é|da|do|de|em|um|uma|que|se|por|para|com|na|no|ou|as|os|the|of|in|on|at|to|for|with|by|from|is|are|was|were|be|or|and|but|if|it");
+
+                        // Token ≤6 chars + ambos minúsculas + anterior NÃO é palavra comum
+                        boolean likelyContinuation = tokenStartsWithLower &&
+                                prevEndsWithLower &&
+                                token.length() <= 6 &&
+                                !prevIsCommonWord;
+
+                        boolean needsSpace = !tokenStartsWithSpace &&
+                                !tokenIsPunctuation &&
+                                !prevEndedWithSpace &&
+                                !prevWasPunctuation &&
+                                !likelyContinuation;
+
+                        if (needsSpace) {
+                            processedToken = " " + token;
+                        }
+                    }
+
+                    previousToken = token;
+                    isFirstToken = false;
+                    // ================================================
+
+                    fullResponse.append(processedToken);
+
+                    // Envia token para o frontend
+                    String jsonToken = objectMapper.writeValueAsString(processedToken);
+                    writer.write("data: {\"response\":" + jsonToken + "}\n\n");
+                    writer.flush();
+                }
+
+                boolean done = jsonNode.path("done").asBoolean(false);
+                if (done) break;
+            }
+
+            // Finaliza stream
+            writer.write("event: end\ndata: done\n\n");
+            writer.flush();
         }
     }
 }

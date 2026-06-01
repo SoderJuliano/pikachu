@@ -6,6 +6,7 @@
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/adapter/out/ollama/OllamaClientAdapter.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/Gemma3Service.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/Llama3Service.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/LlamaStreamService.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/LlamaTinyService.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/application/Qwen25Service.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/exception/ModelUnavailableException.java
@@ -13,6 +14,7 @@
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/model/ChatResponse.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/Gemma3UseCase.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/Llama3UseCase.java
+/home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/LlamaStreamUseCase.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/LlamaTinyUseCase.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/in/Qwen25UseCase.java
 /home/julianosoder/Documentos/pikachu/src/main/java/com/mcp/pikachu/domain/port/out/LlmClientPort.java

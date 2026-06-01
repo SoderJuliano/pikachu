@@ -1,18 +1,19 @@
 package com.mcp.pikachu.adapter.in.web;
 
+import com.mcp.pikachu.domain.port.in.*;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.mcp.pikachu.domain.model.ChatRequest;
-import com.mcp.pikachu.domain.port.in.Gemma3UseCase;
-import com.mcp.pikachu.domain.port.in.Llama3UseCase;
-import com.mcp.pikachu.domain.port.in.LlamaTinyUseCase;
-import com.mcp.pikachu.domain.port.in.Qwen25UseCase;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.io.IOException;
 
 @Slf4j
 @RestController
@@ -25,6 +26,7 @@ public class ChatController {
     private final Llama3UseCase llama3UseCase;
     private final Gemma3UseCase gemma3UseCase;
     private final Qwen25UseCase qwen25UseCase;
+    private final LlamaStreamUseCase llamaStreamUseCase;
 
     @Operation(summary = "Generate text with TinyLlama")
     @PostMapping("/llamatiny")
@@ -52,5 +54,13 @@ public class ChatController {
     public ResponseEntity<String> qwen25(@RequestBody ChatRequest request) {
         log.info("Received qwen2.5 request");
         return ResponseEntity.ok(qwen25UseCase.execute(request));
+    }
+
+    @PostMapping(value = "/llama3-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public void streamLlama3Response(
+            @RequestBody ChatRequest request,
+            HttpServletResponse response
+    ) throws IOException {
+        llamaStreamUseCase.llamaStream(request, response);
     }
 }
