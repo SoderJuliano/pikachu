@@ -47,9 +47,9 @@ public class OllamaClientAdapter implements LlmClientPort {
 
     @Override
     public String getGemmaResponse(ChatRequest request) {
-        log.info("Calling gemma3 via Ollama");
+        log.info("Calling gemma3:12b via Ollama");
         String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? "Responder em português." : "Answer in English.";
-        return callOllama("gemma3-4b", request.prompt() + instruction);
+        return callOllama("gemma3:12b", request.prompt() + instruction);
     }
 
     @Override

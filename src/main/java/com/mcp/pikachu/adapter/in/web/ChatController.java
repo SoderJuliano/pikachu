@@ -27,6 +27,7 @@ public class ChatController {
     private final Gemma3UseCase gemma3UseCase;
     private final Qwen25UseCase qwen25UseCase;
     private final LlamaStreamUseCase llamaStreamUseCase;
+    private final Qwen36_17bUseCase qwen36_17bUseCase;
 
     @Operation(summary = "Generate text with TinyLlama")
     @PostMapping("/llamatiny")
@@ -68,7 +69,6 @@ public class ChatController {
     @PostMapping(value = "/qwen3.6-17b")
     public ResponseEntity<String> qwen36(@RequestBody ChatRequest request) {
         log.info("Received qwen3.6 17B request");
-        // Implement the logic to handle the request and generate a response
-        return ResponseEntity.ok("Qwen3.6 17B response");
+        return ResponseEntity.ok(qwen36_17bUseCase.execute(request));
     }
 }
