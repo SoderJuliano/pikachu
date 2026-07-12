@@ -10,7 +10,7 @@ import java.util.Properties;
 public class SecretManager {
 
     private static final Properties properties = new Properties();
-    private static final String PATH = "/home/soder/Documents/app/secrets.txt";
+    private static final String PATH = "/mnt/500gb/app/secrets.txt";
 
     static {
         try (FileInputStream input = new FileInputStream(PATH)) {

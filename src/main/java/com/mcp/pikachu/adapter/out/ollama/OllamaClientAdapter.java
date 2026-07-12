@@ -66,10 +66,16 @@ public class OllamaClientAdapter implements LlmClientPort {
     }
 
     @Override
-    public String qwen36_17bResponse(ChatRequest request) {
-        log.info("Calling qwen3.6-17b via Ollama");
-        String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? "Responder em português." : "Answer in English.";
-        return callOllama("qwen3.6:27b", request.prompt() + instruction);
+    public void qwen36_17bStream(ChatRequest request, HttpServletResponse response) throws IOException {
+        log.info("Streaming qwen3.6-17b (thinking) response via Ollama");
+        qwen36ThinkingStreamResponse(request, response);
+    }
+
+    @Override
+    public String callModel(String model, ChatRequest request) {
+        log.info("Calling model [{}] via Ollama", model);
+        String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? " Responder em português." : " Answer in English.";
+        return callOllama(model, request.prompt() + instruction);
     }
 
     private String callOllama(String model, String prompt) {
@@ -214,6 +220,97 @@ public class OllamaClientAdapter implements LlmClientPort {
 
             // Finaliza stream
             writer.write("event: end\ndata: done\n\n");
+            writer.flush();
+        }
+    }
+
+    private void qwen36ThinkingStreamResponse(ChatRequest request, HttpServletResponse response) throws IOException {
+
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/event-stream");
+
+        PrintWriter writer = response.getWriter();
+
+        String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? " Responder em português." : " Answer in English.";
+        String fullPrompt = request.prompt() + instruction;
+
+        // Requisição: stream + think habilitam o envio incremental do raciocínio e da resposta
+        Map<String, Object> requestBodyMap = new HashMap<>();
+        requestBodyMap.put("model", "qwen3.6:27b");
+        requestBodyMap.put("prompt", fullPrompt);
+        requestBodyMap.put("stream", true);
+        requestBodyMap.put("think", true);
+
+        String requestBody = objectMapper.writeValueAsString(requestBodyMap);
+
+        // Timeout de 10 minutos: este modelo é pesado e demorado
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.MINUTES)
+                .callTimeout(10, TimeUnit.MINUTES)
+                .build();
+
+        Request httpRequest = new Request.Builder()
+                .url(OLLAMA_URL)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(requestBody, JSON))
+                .build();
+
+        try (Response ollamaResponse = client.newCall(httpRequest).execute()) {
+            if (!ollamaResponse.isSuccessful()) {
+                writer.write("event: error\ndata: Request failed " + ollamaResponse.code() + "\n\n");
+                writer.flush();
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(ollamaResponse.body().byteStream()));
+
+            String line;
+            boolean thinkingPhase = false;
+
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+
+                // Cada linha do Ollama STREAM é um JSON
+                JsonNode jsonNode = objectMapper.readTree(line);
+
+                // Tokens do raciocínio (processo de "thinking" do modelo)
+                String thinking = jsonNode.path("thinking").asText("");
+                if (!thinking.isEmpty()) {
+                    if (!thinkingPhase) {
+                        // Sinaliza ao front o início do processo de raciocínio
+                        writer.write("event: thinking-start\ndata: start\n\n");
+                        thinkingPhase = true;
+                    }
+                    String jsonThinking = objectMapper.writeValueAsString(thinking);
+                    writer.write("data: {\"thinking\":" + jsonThinking + "}\n\n");
+                    writer.flush();
+                }
+
+                // Tokens da resposta final
+                String token = jsonNode.path("response").asText("");
+                if (!token.isEmpty()) {
+                    if (thinkingPhase) {
+                        // Encerra a fase de raciocínio antes de emitir a resposta
+                        writer.write("event: thinking-end\ndata: done\n\n");
+                        thinkingPhase = false;
+                    }
+                    String jsonToken = objectMapper.writeValueAsString(token);
+                    writer.write("data: {\"response\":" + jsonToken + "}\n\n");
+                    writer.flush();
+                }
+
+                boolean done = jsonNode.path("done").asBoolean(false);
+                if (done) break;
+            }
+
+            // Finaliza stream
+            writer.write("event: end\ndata: done\n\n");
+            writer.flush();
+        } catch (IOException e) {
+            log.error("Failed to stream qwen3.6-17b: {}", e.getMessage());
+            writer.write("event: error\ndata: " + e.getMessage() + "\n\n");
             writer.flush();
         }
     }

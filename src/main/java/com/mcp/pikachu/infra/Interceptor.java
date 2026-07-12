@@ -23,6 +23,10 @@ public class Interceptor implements org.springframework.web.servlet.HandlerInter
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         log.info("Incoming request: {} {}", request.getMethod(), request.getRequestURI());
 
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            return true;
+        }
+
         String uri = request.getRequestURI();
         if (!PROTECTED_PATHS.contains(uri)) {
             return true;
@@ -37,7 +41,7 @@ public class Interceptor implements org.springframework.web.servlet.HandlerInter
         }
 
         String expectedKey = SecretManager.getSecret(SECRET_KEY);
-        if (!apikey.equals(expectedKey)) {
+        if (!apikey.equals(expectedKey.trim())) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Invalid API key");
             log.warn("Unauthorized access attempt with invalid API key on {}", uri);

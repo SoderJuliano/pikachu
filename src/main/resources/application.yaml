@@ -11,4 +11,4 @@ springdoc:
 
 app:
   timeout:
-    default: 120
+    default: 240 # 4 minutes

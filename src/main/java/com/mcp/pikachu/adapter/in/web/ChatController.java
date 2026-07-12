@@ -1,6 +1,7 @@
 package com.mcp.pikachu.adapter.in.web;
 
 import com.mcp.pikachu.domain.port.in.*;
+import jakarta.servlet.AsyncContext;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -65,10 +66,14 @@ public class ChatController {
         llamaStreamUseCase.llamaStream(request, response);
     }
 
-    @Operation(summary = "Heavy generating text with Qwen3.6 17B and image input")
-    @PostMapping(value = "/qwen3.6-17b")
-    public ResponseEntity<String> qwen36(@RequestBody ChatRequest request) {
-        log.info("Received qwen3.6 17B request");
-        return ResponseEntity.ok(qwen36_17bUseCase.execute(request));
+    @Operation(summary = "Heavy generating text with Qwen3.6 17B, streaming the model's thinking process then the answer")
+    @PostMapping(value = "/qwen3.6-17b", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public void qwen36(@RequestBody ChatRequest request,
+                       jakarta.servlet.http.HttpServletRequest servletRequest,
+                       HttpServletResponse response) throws IOException {
+        log.info("Received qwen3.6 17B stream request");
+        AsyncContext asyncContext = servletRequest.startAsync();
+        asyncContext.setTimeout(600_000L); // 10 minutos
+        qwen36_17bUseCase.execute(request, response);
     }
 }
