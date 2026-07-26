@@ -9,6 +9,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.servlet.AsyncContext;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
+import java.io.IOException;
 
 @Slf4j
 @RestController
@@ -28,10 +33,13 @@ public class ModelController {
     }
 
     @Operation(summary = "Send a prompt to any locally available Ollama model via ?model=<name>")
-    @PostMapping("/chat")
-    public ResponseEntity<String> chat(@RequestParam String model, @RequestBody ChatRequest request) {
+    @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public void chat(@RequestParam String model, @RequestBody ChatRequest request,
+                     HttpServletRequest servletRequest, HttpServletResponse response) throws IOException {
         log.info("Received generic chat request for model: {}", model);
-        return ResponseEntity.ok(genericChatUseCase.execute(model, request));
+        AsyncContext asyncContext = servletRequest.startAsync();
+        asyncContext.setTimeout(600_000L); // 10 minutes
+        genericChatUseCase.executeStream(model, request, response);
     }
 }
 

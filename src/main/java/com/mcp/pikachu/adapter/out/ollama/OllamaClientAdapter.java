@@ -314,4 +314,90 @@ public class OllamaClientAdapter implements LlmClientPort {
             writer.flush();
         }
     }
+
+    @Override
+    public void genericStream(String model, ChatRequest request, HttpServletResponse response) throws IOException {
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/event-stream");
+
+        PrintWriter writer = response.getWriter();
+
+        String instruction = "PORTUGUESE".equalsIgnoreCase(request.language()) ? " Responder em português." : " Answer in English.";
+        String fullPrompt = request.prompt() + instruction;
+
+        Map<String, Object> requestBodyMap = new HashMap<>();
+        requestBodyMap.put("model", model);
+        requestBodyMap.put("prompt", fullPrompt);
+        requestBodyMap.put("stream", true);
+        requestBodyMap.put("think", true);
+
+        if (request.imageBase64() != null && !request.imageBase64().isEmpty()) {
+            requestBodyMap.put("images", java.util.List.of(request.imageBase64()));
+        }
+
+        String requestBody = objectMapper.writeValueAsString(requestBodyMap);
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.MINUTES)
+                .callTimeout(10, TimeUnit.MINUTES)
+                .build();
+
+        Request httpRequest = new Request.Builder()
+                .url(OLLAMA_URL)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(requestBody, JSON))
+                .build();
+
+        try (Response ollamaResponse = client.newCall(httpRequest).execute()) {
+            if (!ollamaResponse.isSuccessful()) {
+                writer.write("event: error\ndata: Request failed " + ollamaResponse.code() + "\n\n");
+                writer.flush();
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(ollamaResponse.body().byteStream()));
+            String line;
+            boolean thinkingPhase = false;
+
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+
+                JsonNode jsonNode = objectMapper.readTree(line);
+
+                String thinking = jsonNode.path("thinking").asText("");
+                if (!thinking.isEmpty()) {
+                    if (!thinkingPhase) {
+                        writer.write("event: thinking-start\ndata: start\n\n");
+                        thinkingPhase = true;
+                    }
+                    String jsonThinking = objectMapper.writeValueAsString(thinking);
+                    writer.write("data: {\"thinking\":" + jsonThinking + "}\n\n");
+                    writer.flush();
+                }
+
+                String token = jsonNode.path("response").asText("");
+                if (!token.isEmpty()) {
+                    if (thinkingPhase) {
+                        writer.write("event: thinking-end\ndata: done\n\n");
+                        thinkingPhase = false;
+                    }
+                    String jsonToken = objectMapper.writeValueAsString(token);
+                    writer.write("data: {\"response\":" + jsonToken + "}\n\n");
+                    writer.flush();
+                }
+
+                boolean done = jsonNode.path("done").asBoolean(false);
+                if (done) break;
+            }
+
+            writer.write("event: end\ndata: done\n\n");
+            writer.flush();
+        } catch (IOException e) {
+            log.error("Failed to stream {}: {}", model, e.getMessage());
+            writer.write("event: error\ndata: " + e.getMessage() + "\n\n");
+            writer.flush();
+        }
+    }
 }

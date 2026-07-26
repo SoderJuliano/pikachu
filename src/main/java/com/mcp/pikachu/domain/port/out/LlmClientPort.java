@@ -19,5 +19,7 @@ public interface LlmClientPort {
 
         void qwen36_17bStream(ChatRequest request, HttpServletResponse response) throws IOException;
 
+        void genericStream(String model, ChatRequest request, HttpServletResponse response) throws IOException;
+
         String callModel(String model, ChatRequest request);
 }
