@@ -22,4 +22,6 @@ public interface LlmClientPort {
         void genericStream(String model, ChatRequest request, HttpServletResponse response) throws IOException;
 
         String callModel(String model, ChatRequest request);
+
+        String getAvailableModels();
 }

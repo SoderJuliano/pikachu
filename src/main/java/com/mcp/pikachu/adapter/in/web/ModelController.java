@@ -24,6 +24,14 @@ public class ModelController {
 
     private final InstallModelUseCase installModelUseCase;
     private final GenericChatUseCase genericChatUseCase;
+    private final com.mcp.pikachu.domain.port.out.LlmClientPort llmClientPort;
+
+    @Operation(summary = "List available models from local Ollama")
+    @GetMapping(value = "/models", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> getModels() {
+        log.info("Received request to list available models");
+        return ResponseEntity.ok(llmClientPort.getAvailableModels());
+    }
 
     @Operation(summary = "Install a new Ollama model by name (e.g. llama3.2, mistral)")
     @PostMapping("/models/install")

@@ -379,12 +379,32 @@ public class OllamaClientAdapter implements LlmClientPort {
 
                 String token = jsonNode.path("response").asText("");
                 if (!token.isEmpty()) {
-                    if (thinkingPhase) {
-                        writer.write("event: thinking-end\ndata: done\n\n");
-                        thinkingPhase = false;
+                    if (token.contains("<think>")) {
+                        thinkingPhase = true;
+                        writer.write("event: thinking-start\ndata: start\n\n");
+                        token = token.replace("<think>", "");
                     }
-                    String jsonToken = objectMapper.writeValueAsString(token);
-                    writer.write("data: {\"response\":" + jsonToken + "}\n\n");
+                    
+                    if (token.contains("</think>")) {
+                        token = token.replace("</think>", "");
+                        if (!token.isEmpty()) {
+                            String jsonToken = objectMapper.writeValueAsString(token);
+                            writer.write("data: {\"thinking\":" + jsonToken + "}\n\n");
+                        }
+                        writer.write("event: thinking-end\ndata: done\n\n");
+                        writer.write("event: message\ndata: start\n\n"); // Reset event to message for subsequent text
+                        thinkingPhase = false;
+                        writer.flush();
+                        continue; // Skip the regular response write for this chunk if we just ended thinking
+                    }
+                    
+                    if (thinkingPhase) {
+                        String jsonToken = objectMapper.writeValueAsString(token);
+                        writer.write("data: {\"thinking\":" + jsonToken + "}\n\n");
+                    } else {
+                        String jsonToken = objectMapper.writeValueAsString(token);
+                        writer.write("data: {\"response\":" + jsonToken + "}\n\n");
+                    }
                     writer.flush();
                 }
 
@@ -399,5 +419,24 @@ public class OllamaClientAdapter implements LlmClientPort {
             writer.write("event: error\ndata: " + e.getMessage() + "\n\n");
             writer.flush();
         }
+    }
+
+    @Override
+    public String getAvailableModels() {
+        OkHttpClient client = new OkHttpClient.Builder()
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build();
+        Request request = new Request.Builder()
+                .url("http://localhost:11434/api/tags")
+                .get()
+                .build();
+        try (Response response = client.newCall(request).execute()) {
+            if (response.isSuccessful() && response.body() != null) {
+                return response.body().string();
+            }
+        } catch (IOException e) {
+            log.error("Failed to fetch available models from Ollama", e);
+        }
+        return "{\"models\":[]}";
     }
 }
