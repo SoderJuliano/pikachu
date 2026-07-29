@@ -11,4 +11,9 @@ springdoc:
 
 app:
   timeout:
-    default: 240 # 4 minutes
+    default: 240 # 4 minutes — nao se aplica a endpoints SSE (ver TimeoutFilter)
+  ollama:
+    # Teto da janela de contexto. O valor real por request e calculado pelo
+    # tamanho do prompt (ver OllamaClientAdapter.resolveNumCtx): pergunta curta
+    # segue em 4096, prompt do modo IDE sobe ate este teto. Subir isto custa VRAM.
+    max-num-ctx: 32768

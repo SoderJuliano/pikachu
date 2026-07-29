@@ -84,6 +84,11 @@ public class OllamaClientAdapter implements LlmClientPort {
             body.put("model", model);
             body.put("prompt", prompt);
             body.put("stream", false);
+            // De proposito SEM options.num_ctx aqui. O truncamento silencioso do
+            // Ollama tambem acontece neste caminho, mas estes endpoints rodam
+            // modelos de contexto curto (llama3 = 8k) e servem as respostas
+            // rapidas de audio/print, onde o prompt e pequeno de todo jeito.
+            // Pedir uma janela grande pra eles seria risco sem ganho.
 
             String requestBody = objectMapper.writeValueAsString(body);
 
@@ -315,10 +320,84 @@ public class OllamaClientAdapter implements LlmClientPort {
         }
     }
 
+    // ─── Contexto (num_ctx) ──────────────────────────────────────────────────────
+    // O Ollama nao aumenta a janela de contexto sozinho: se o prompt passa do
+    // num_ctx, ele DESCARTA o excedente sem avisar. Como o tamanho do prompt aqui
+    // varia de uma pergunta de audio (200 chars) ao prompt do modo IDE (dezenas de
+    // milhares), o valor e calculado por request: pergunta curta continua barata e
+    // rapida, prompt de agente recebe a janela que precisa, ate o teto.
+    private static final int MIN_NUM_CTX = 4096;
+    private static final int OUTPUT_HEADROOM_TOKENS = 2048;
+    private static final double CHARS_PER_TOKEN = 3.0; // conservador (codigo + PT-BR)
+
+    @org.springframework.beans.factory.annotation.Value("${app.ollama.max-num-ctx:32768}")
+    private int maxNumCtx = 32768;
+
+    private Map<String, Object> buildOptions(String prompt, String model) {
+        Map<String, Object> options = new HashMap<>();
+        options.put("num_ctx", resolveNumCtx(prompt, model));
+        return options;
+    }
+
+    private int resolveNumCtx(String prompt, String model) {
+        int cap = maxNumCtx > 0 ? maxNumCtx : 32768;
+        int estimated = (int) Math.ceil((prompt == null ? 0 : prompt.length()) / CHARS_PER_TOKEN)
+                + OUTPUT_HEADROOM_TOKENS;
+        int ctx = MIN_NUM_CTX;
+        while (ctx < estimated && ctx < cap) {
+            ctx *= 2;
+        }
+        ctx = Math.min(ctx, cap);
+        if (estimated > cap) {
+            log.warn("Prompt para [{}] estimado em ~{} tokens, acima do teto de num_ctx ({}). "
+                    + "O Ollama vai truncar — suba app.ollama.max-num-ctx se houver VRAM.",
+                    model, estimated, cap);
+        } else {
+            log.info("num_ctx={} para [{}] (~{} tokens estimados)", ctx, model, estimated);
+        }
+        return ctx;
+    }
+
+    // Modelo sem suporte a raciocinio faz o Ollama devolver 400 quando think=true.
+    // Em vez de estourar o erro na cara do usuario, tenta de novo sem o parametro.
+    private Response callGenerate(OkHttpClient client, Map<String, Object> bodyMap) throws IOException {
+        Response response = postGenerate(client, bodyMap);
+        if (response.code() == 400 && bodyMap.containsKey("think")) {
+            String detail = errorDetail(response);
+            response.close();
+            log.warn("Ollama recusou think=true ({}); repetindo sem raciocinio.", detail);
+            Map<String, Object> retry = new HashMap<>(bodyMap);
+            retry.remove("think");
+            return postGenerate(client, retry);
+        }
+        return response;
+    }
+
+    private Response postGenerate(OkHttpClient client, Map<String, Object> bodyMap) throws IOException {
+        Request httpRequest = new Request.Builder()
+                .url(OLLAMA_URL)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(objectMapper.writeValueAsString(bodyMap), JSON))
+                .build();
+        return client.newCall(httpRequest).execute();
+    }
+
+    private String errorDetail(Response response) {
+        try {
+            return response.body() == null ? "" : response.body().string().trim();
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
     @Override
     public void genericStream(String model, ChatRequest request, HttpServletResponse response) throws IOException {
         response.setCharacterEncoding("UTF-8");
         response.setContentType("text/event-stream");
+        // Proxy reverso (nginx/ngrok) que bufferiza a resposta transforma SSE em
+        // "nada acontece por minutos e depois vem tudo junto".
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
 
         PrintWriter writer = response.getWriter();
 
@@ -330,12 +409,20 @@ public class OllamaClientAdapter implements LlmClientPort {
         requestBodyMap.put("prompt", fullPrompt);
         requestBodyMap.put("stream", true);
         requestBodyMap.put("think", true);
+        // Sem isto o Ollama usa o num_ctx default (4096) e TRUNCA o prompt em
+        // silencio. No modo IDE do helper-node o prompt leva a arvore do projeto,
+        // a lista de ferramentas e os TOOL_RESULT acumulados: o que sobrava eram
+        // as ultimas linhas, sem o bloco de ferramentas. O modelo entao raciocinava
+        // "me disseram que tenho acesso ao diretorio, mas nao vejo ferramenta
+        // nenhuma — isso e contraditorio" e entrava em loop no proprio raciocinio.
+        requestBodyMap.put("options", buildOptions(fullPrompt, model));
+        // Mantem o modelo carregado entre as iteracoes do tool loop (cada TOOL_CALL
+        // e uma request nova; sem isto o modelo pode ser descarregado no meio).
+        requestBodyMap.put("keep_alive", "30m");
 
         if (request.imageBase64() != null && !request.imageBase64().isEmpty()) {
             requestBodyMap.put("images", java.util.List.of(request.imageBase64()));
         }
-
-        String requestBody = objectMapper.writeValueAsString(requestBodyMap);
 
         OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
@@ -344,15 +431,12 @@ public class OllamaClientAdapter implements LlmClientPort {
                 .callTimeout(10, TimeUnit.MINUTES)
                 .build();
 
-        Request httpRequest = new Request.Builder()
-                .url(OLLAMA_URL)
-                .addHeader("Content-Type", "application/json")
-                .post(RequestBody.create(requestBody, JSON))
-                .build();
-
-        try (Response ollamaResponse = client.newCall(httpRequest).execute()) {
+        try (Response ollamaResponse = callGenerate(client, requestBodyMap)) {
             if (!ollamaResponse.isSuccessful()) {
-                writer.write("event: error\ndata: Request failed " + ollamaResponse.code() + "\n\n");
+                String detail = errorDetail(ollamaResponse);
+                log.error("Ollama rejected [{}]: {} - {}", model, ollamaResponse.code(), detail);
+                writer.write("event: error\ndata: Request failed " + ollamaResponse.code()
+                        + (detail.isEmpty() ? "" : " - " + detail.replace('\n', ' ')) + "\n\n");
                 writer.flush();
                 return;
             }
