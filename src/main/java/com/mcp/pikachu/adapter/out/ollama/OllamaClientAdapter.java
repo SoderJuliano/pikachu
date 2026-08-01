@@ -467,7 +467,12 @@ public class OllamaClientAdapter implements LlmClientPort {
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(ollamaResponse.body().byteStream()));
             String line;
-            boolean thinkingPhase = false;
+            // Fase de raciocinio ABERTA no protocolo SSE (ja mandamos thinking-start).
+            boolean thinkingOpen = false;
+            // O raciocinio veio como <think>...</think> DENTRO do campo "response"
+            // (modelo que embute o raciocinio no texto). Diferente do raciocinio
+            // nativo do Ollama, que chega no campo "thinking" separado.
+            boolean inlineThinking = false;
 
             while ((line = reader.readLine()) != null) {
                 if (line.isBlank()) continue;
@@ -476,9 +481,9 @@ public class OllamaClientAdapter implements LlmClientPort {
 
                 String thinking = jsonNode.path("thinking").asText("");
                 if (!thinking.isEmpty()) {
-                    if (!thinkingPhase) {
+                    if (!thinkingOpen) {
                         writer.write("event: thinking-start\ndata: start\n\n");
-                        thinkingPhase = true;
+                        thinkingOpen = true;
                     }
                     String jsonThinking = objectMapper.writeValueAsString(thinking);
                     writer.write("data: {\"thinking\":" + jsonThinking + "}\n\n");
@@ -488,30 +493,42 @@ public class OllamaClientAdapter implements LlmClientPort {
                 String token = jsonNode.path("response").asText("");
                 if (!token.isEmpty()) {
                     if (token.contains("<think>")) {
-                        thinkingPhase = true;
-                        writer.write("event: thinking-start\ndata: start\n\n");
                         token = token.replace("<think>", "");
+                        if (!thinkingOpen) {
+                            writer.write("event: thinking-start\ndata: start\n\n");
+                            thinkingOpen = true;
+                        }
+                        inlineThinking = true;
                     }
 
                     if (token.contains("</think>")) {
                         token = token.replace("</think>", "");
-                        if (!token.isEmpty()) {
-                            String jsonToken = objectMapper.writeValueAsString(token);
-                            writer.write("data: {\"thinking\":" + jsonToken + "}\n\n");
-                        }
-                        writer.write("event: thinking-end\ndata: done\n\n");
-                        writer.write("event: message\ndata: start\n\n"); // Reset event to message for subsequent text
-                        thinkingPhase = false;
-                        writer.flush();
-                        continue; // Skip the regular response write for this chunk if we just ended thinking
+                        inlineThinking = false; // o que vier depois da tag e RESPOSTA
                     }
 
-                    if (thinkingPhase) {
+                    // AQUI ESTAVA O BUG QUE DEIXAVA A TELA VAZIA: com think=true o
+                    // Ollama manda o raciocinio no campo "thinking" e a RESPOSTA no
+                    // campo "response" — sem nenhuma tag </think> pra fechar a fase.
+                    // Como a fase so fechava ao ver </think>, ela ficava aberta pra
+                    // sempre e TODO token de resposta era reetiquetado como
+                    // "thinking". O cliente jogava a resposta inteira no buffer de
+                    // raciocinio, o buffer de resposta ficava vazio e o usuario via
+                    // uma tela em branco, sem texto e sem erro.
+                    // Regra correta: chegou "response" e nao estamos dentro de um
+                    // <think> inline => o raciocinio acabou, fecha a fase.
+                    if (thinkingOpen && !inlineThinking) {
+                        writer.write("event: thinking-end\ndata: done\n\n");
+                        writer.write("event: message\ndata: start\n\n");
+                        thinkingOpen = false;
+                    }
+
+                    if (!token.isEmpty()) {
                         String jsonToken = objectMapper.writeValueAsString(token);
-                        writer.write("data: {\"thinking\":" + jsonToken + "}\n\n");
-                    } else {
-                        String jsonToken = objectMapper.writeValueAsString(token);
-                        writer.write("data: {\"response\":" + jsonToken + "}\n\n");
+                        if (inlineThinking) {
+                            writer.write("data: {\"thinking\":" + jsonToken + "}\n\n");
+                        } else {
+                            writer.write("data: {\"response\":" + jsonToken + "}\n\n");
+                        }
                     }
                     writer.flush();
                 }
@@ -529,6 +546,13 @@ public class OllamaClientAdapter implements LlmClientPort {
 
                 boolean done = jsonNode.path("done").asBoolean(false);
                 if (done) break;
+            }
+
+            // Modelo que so raciocinou e nao produziu resposta: sem fechar a fase
+            // aqui, o cliente fica com a caixa de raciocinio aberta pra sempre.
+            if (thinkingOpen) {
+                writer.write("event: thinking-end\ndata: done\n\n");
+                thinkingOpen = false;
             }
 
             writer.write("event: end\ndata: done\n\n");
