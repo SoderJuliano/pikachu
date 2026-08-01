@@ -47,7 +47,14 @@ public class ModelController {
         log.info("Received generic chat request for model: {}", model);
         AsyncContext asyncContext = servletRequest.startAsync();
         asyncContext.setTimeout(600_000L); // 10 minutes
-        genericChatUseCase.executeStream(model, request, response);
+        try {
+            genericChatUseCase.executeStream(model, request, response);
+        } finally {
+            // Sem isto o AsyncContext ficava "aberto" ate o timeout de 10min mesmo
+            // apos o stream terminar de verdade — o container so libera o slot
+            // async no complete() ou no timeout, nunca so por o metodo retornar.
+            asyncContext.complete();
+        }
     }
 }
 

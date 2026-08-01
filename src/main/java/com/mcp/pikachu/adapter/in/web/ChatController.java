@@ -74,6 +74,10 @@ public class ChatController {
         log.info("Received qwen3.6 17B stream request");
         AsyncContext asyncContext = servletRequest.startAsync();
         asyncContext.setTimeout(600_000L); // 10 minutos
-        qwen36_17bUseCase.execute(request, response);
+        try {
+            qwen36_17bUseCase.execute(request, response);
+        } finally {
+            asyncContext.complete();
+        }
     }
 }

@@ -151,7 +151,8 @@ public class OllamaClientAdapter implements LlmClientPort {
                 .post(RequestBody.create(requestBody, MediaType.parse("application/json")))
                 .build();
 
-        try (Response ollamaResponse = client.newCall(httpRequest).execute()) {
+        okhttp3.Call call = client.newCall(httpRequest);
+        try (Response ollamaResponse = call.execute()) {
             if (!ollamaResponse.isSuccessful()) {
                 writer.write("event: error\ndata: Request failed " + ollamaResponse.code() + "\n\n");
                 writer.flush();
@@ -219,6 +220,12 @@ public class OllamaClientAdapter implements LlmClientPort {
                     writer.flush();
                 }
 
+                if (writer.checkError()) {
+                    log.warn("Cliente desconectou durante stream llama3 — cancelando chamada ao Ollama.");
+                    call.cancel();
+                    return;
+                }
+
                 boolean done = jsonNode.path("done").asBoolean(false);
                 if (done) break;
             }
@@ -262,7 +269,8 @@ public class OllamaClientAdapter implements LlmClientPort {
                 .post(RequestBody.create(requestBody, JSON))
                 .build();
 
-        try (Response ollamaResponse = client.newCall(httpRequest).execute()) {
+        okhttp3.Call call = client.newCall(httpRequest);
+        try (Response ollamaResponse = call.execute()) {
             if (!ollamaResponse.isSuccessful()) {
                 writer.write("event: error\ndata: Request failed " + ollamaResponse.code() + "\n\n");
                 writer.flush();
@@ -304,6 +312,12 @@ public class OllamaClientAdapter implements LlmClientPort {
                     String jsonToken = objectMapper.writeValueAsString(token);
                     writer.write("data: {\"response\":" + jsonToken + "}\n\n");
                     writer.flush();
+                }
+
+                if (writer.checkError()) {
+                    log.warn("Cliente desconectou durante stream qwen3.6-17b — cancelando chamada ao Ollama.");
+                    call.cancel();
+                    return;
                 }
 
                 boolean done = jsonNode.path("done").asBoolean(false);
@@ -358,28 +372,36 @@ public class OllamaClientAdapter implements LlmClientPort {
         return ctx;
     }
 
+    // Mantem a Call junto da Response para que quem esta lendo o stream possa
+    // cancelar a chamada ao Ollama no meio (ver checkError() em genericStream) —
+    // sem isso, um cliente que desconectou no meio da geracao deixava o Ollama
+    // "preso" gerando ate o fim (ou ate o callTimeout de 10min), enfileirando
+    // qualquer request nova atras dela num modelo pesado que so serve 1 por vez.
+    private record CallAndResponse(okhttp3.Call call, Response response) {}
+
+    private Request buildGenerateRequest(Map<String, Object> bodyMap) throws IOException {
+        return new Request.Builder()
+                .url(OLLAMA_URL)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(objectMapper.writeValueAsString(bodyMap), JSON))
+                .build();
+    }
+
     // Modelo sem suporte a raciocinio faz o Ollama devolver 400 quando think=true.
     // Em vez de estourar o erro na cara do usuario, tenta de novo sem o parametro.
-    private Response callGenerate(OkHttpClient client, Map<String, Object> bodyMap) throws IOException {
-        Response response = postGenerate(client, bodyMap);
+    private CallAndResponse callGenerate(OkHttpClient client, Map<String, Object> bodyMap) throws IOException {
+        okhttp3.Call call = client.newCall(buildGenerateRequest(bodyMap));
+        Response response = call.execute();
         if (response.code() == 400 && bodyMap.containsKey("think")) {
             String detail = errorDetail(response);
             response.close();
             log.warn("Ollama recusou think=true ({}); repetindo sem raciocinio.", detail);
             Map<String, Object> retry = new HashMap<>(bodyMap);
             retry.remove("think");
-            return postGenerate(client, retry);
+            okhttp3.Call retryCall = client.newCall(buildGenerateRequest(retry));
+            return new CallAndResponse(retryCall, retryCall.execute());
         }
-        return response;
-    }
-
-    private Response postGenerate(OkHttpClient client, Map<String, Object> bodyMap) throws IOException {
-        Request httpRequest = new Request.Builder()
-                .url(OLLAMA_URL)
-                .addHeader("Content-Type", "application/json")
-                .post(RequestBody.create(objectMapper.writeValueAsString(bodyMap), JSON))
-                .build();
-        return client.newCall(httpRequest).execute();
+        return new CallAndResponse(call, response);
     }
 
     private String errorDetail(Response response) {
@@ -431,7 +453,9 @@ public class OllamaClientAdapter implements LlmClientPort {
                 .callTimeout(10, TimeUnit.MINUTES)
                 .build();
 
-        try (Response ollamaResponse = callGenerate(client, requestBodyMap)) {
+        CallAndResponse cr = callGenerate(client, requestBodyMap);
+        okhttp3.Call call = cr.call();
+        try (Response ollamaResponse = cr.response()) {
             if (!ollamaResponse.isSuccessful()) {
                 String detail = errorDetail(ollamaResponse);
                 log.error("Ollama rejected [{}]: {} - {}", model, ollamaResponse.code(), detail);
@@ -468,7 +492,7 @@ public class OllamaClientAdapter implements LlmClientPort {
                         writer.write("event: thinking-start\ndata: start\n\n");
                         token = token.replace("<think>", "");
                     }
-                    
+
                     if (token.contains("</think>")) {
                         token = token.replace("</think>", "");
                         if (!token.isEmpty()) {
@@ -481,7 +505,7 @@ public class OllamaClientAdapter implements LlmClientPort {
                         writer.flush();
                         continue; // Skip the regular response write for this chunk if we just ended thinking
                     }
-                    
+
                     if (thinkingPhase) {
                         String jsonToken = objectMapper.writeValueAsString(token);
                         writer.write("data: {\"thinking\":" + jsonToken + "}\n\n");
@@ -490,6 +514,17 @@ public class OllamaClientAdapter implements LlmClientPort {
                         writer.write("data: {\"response\":" + jsonToken + "}\n\n");
                     }
                     writer.flush();
+                }
+
+                // PrintWriter NUNCA lanca IOException — engole a falha de escrita e so
+                // marca um flag interno. Sem checar aqui, cliente desconectado (aborted
+                // fetch do Node, app fechado) nao interrompia nada: o loop continuava
+                // lendo do Ollama ate ele terminar sozinho, segurando o modelo (que so
+                // atende 1 geracao pesada por vez) preso pra qualquer request nova.
+                if (writer.checkError()) {
+                    log.warn("Cliente desconectou durante stream de [{}] — cancelando chamada ao Ollama.", model);
+                    call.cancel();
+                    return;
                 }
 
                 boolean done = jsonNode.path("done").asBoolean(false);
