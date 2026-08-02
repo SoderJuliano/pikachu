@@ -16,4 +16,14 @@ app:
     # Teto da janela de contexto. O valor real por request e calculado pelo
     # tamanho do prompt (ver OllamaClientAdapter.resolveNumCtx): pergunta curta
     # segue em 4096, prompt do modo IDE sobe ate este teto. Subir isto custa VRAM.
-    max-num-ctx: 32768
+    #
+    # O qwen3.6 suporta 256K de contexto. O teto estava em 32768 — 1/8 disso — e
+    # era ELE que apertava o modo agente: o cliente tinha que espremer prompt,
+    # resultado de ferramenta e espaco de geracao dentro de 32k, e cada aperto
+    # quebrava outra coisa (turno sem resposta, arquivo lido pela metade,
+    # leitura anterior expulsa pela seguinte).
+    #
+    # 65536 e um passo conservador: dobra o espaco util e ainda cabe com folga
+    # num 35b de 24GB. KV cache cresce linear com a janela — se der OOM no
+    # servidor, baixe de volta pra 32768. Subir pra 131072+ so com VRAM sobrando.
+    max-num-ctx: 65536

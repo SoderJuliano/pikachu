@@ -572,6 +572,147 @@ public class OllamaClientAdapter implements LlmClientPort {
         }
     }
 
+    private static final String OLLAMA_CHAT_URL = "http://localhost:11434/api/chat";
+
+    /**
+     * MODO AGENTE — /api/chat com messages[] e tools[] nativos.
+     *
+     * Por que existe, em vez de reaproveitar o genericStream: la a conversa
+     * inteira vira UMA string e a chamada de ferramenta e TEXTO que o modelo
+     * escreve. Medido no fio: o modelo escrevia "TOOL_CALL" 13 vezes dentro do
+     * proprio raciocinio, se convencia de que tinha executado, e a rodada
+     * terminava sem emitir nada — pra ele "planejei" e "emiti" sao a mesma
+     * coisa, as duas sao texto. Aqui a chamada volta como objeto tipado.
+     *
+     * Protocolo SSE de saida (mesma familia do /chat, mais um evento):
+     *   event: thinking-start / data: {"thinking":"..."} / event: thinking-end
+     *   event: message        / data: {"response":"..."}
+     *   event: tool_call      / data: {"name":"...","arguments":{...}}
+     *   event: end            / data: done
+     */
+    @Override
+    public void agentStream(String model, com.mcp.pikachu.domain.model.AgentRequest request,
+                            HttpServletResponse response) throws IOException {
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("text/event-stream");
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache");
+
+        PrintWriter writer = response.getWriter();
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("model", model);
+        body.put("messages", request.messages());
+        if (request.tools() != null && !request.tools().isEmpty()) {
+            body.put("tools", request.tools());
+        }
+        body.put("stream", true);
+        body.put("think", true);
+        body.put("keep_alive", "30m");
+        // num_ctx dimensionado pelo tamanho REAL da conversa (todas as mensagens).
+        int chars = 0;
+        if (request.messages() != null) {
+            for (Map<String, Object> m : request.messages()) {
+                Object c = m.get("content");
+                if (c != null) chars += String.valueOf(c).length();
+            }
+        }
+        Map<String, Object> options = new HashMap<>();
+        options.put("num_ctx", resolveNumCtx("x".repeat(Math.max(0, chars)), model));
+        body.put("options", options);
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.MINUTES)
+                .callTimeout(10, TimeUnit.MINUTES)
+                .build();
+
+        Request httpRequest = new Request.Builder()
+                .url(OLLAMA_CHAT_URL)
+                .addHeader("Content-Type", "application/json")
+                .post(RequestBody.create(objectMapper.writeValueAsString(body), JSON))
+                .build();
+
+        okhttp3.Call call = client.newCall(httpRequest);
+        try (Response ollamaResponse = call.execute()) {
+            if (!ollamaResponse.isSuccessful()) {
+                String detail = errorDetail(ollamaResponse);
+                log.error("Ollama /api/chat rejeitou [{}]: {} - {}", model, ollamaResponse.code(), detail);
+                writer.write("event: error\ndata: Request failed " + ollamaResponse.code()
+                        + (detail.isEmpty() ? "" : " - " + detail.replace('\n', ' ')) + "\n\n");
+                writer.flush();
+                return;
+            }
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(ollamaResponse.body().byteStream()));
+            String line;
+            boolean thinkingOpen = false;
+
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+                JsonNode node = objectMapper.readTree(line);
+                JsonNode message = node.path("message");
+
+                String thinking = message.path("thinking").asText("");
+                if (!thinking.isEmpty()) {
+                    if (!thinkingOpen) {
+                        writer.write("event: thinking-start\ndata: start\n\n");
+                        thinkingOpen = true;
+                    }
+                    writer.write("data: {\"thinking\":" + objectMapper.writeValueAsString(thinking) + "}\n\n");
+                    writer.flush();
+                }
+
+                // CHAMADA DE FERRAMENTA TIPADA — nao passa por texto nenhum.
+                JsonNode toolCalls = message.path("tool_calls");
+                if (toolCalls.isArray() && !toolCalls.isEmpty()) {
+                    if (thinkingOpen) {
+                        writer.write("event: thinking-end\ndata: done\n\n");
+                        thinkingOpen = false;
+                    }
+                    for (JsonNode tc : toolCalls) {
+                        JsonNode fn = tc.path("function");
+                        Map<String, Object> saida = new HashMap<>();
+                        saida.put("name", fn.path("name").asText(""));
+                        saida.put("arguments", objectMapper.convertValue(fn.path("arguments"), Object.class));
+                        writer.write("event: tool_call\ndata: " + objectMapper.writeValueAsString(saida) + "\n\n");
+                    }
+                    writer.flush();
+                }
+
+                String content = message.path("content").asText("");
+                if (!content.isEmpty()) {
+                    if (thinkingOpen) {
+                        writer.write("event: thinking-end\ndata: done\n\n");
+                        writer.write("event: message\ndata: start\n\n");
+                        thinkingOpen = false;
+                    }
+                    writer.write("data: {\"response\":" + objectMapper.writeValueAsString(content) + "}\n\n");
+                    writer.flush();
+                }
+
+                if (writer.checkError()) {
+                    log.warn("Cliente desconectou durante agentStream [{}] — cancelando chamada ao Ollama.", model);
+                    call.cancel();
+                    return;
+                }
+
+                if (node.path("done").asBoolean(false)) break;
+            }
+
+            if (thinkingOpen) {
+                writer.write("event: thinking-end\ndata: done\n\n");
+            }
+            writer.write("event: end\ndata: done\n\n");
+            writer.flush();
+        } catch (IOException e) {
+            log.error("Falha no agentStream {}: {}", model, e.getMessage());
+            writer.write("event: error\ndata: " + e.getMessage() + "\n\n");
+            writer.flush();
+        }
+    }
+
     @Override
     public String getAvailableModels() {
         OkHttpClient client = new OkHttpClient.Builder()

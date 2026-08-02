@@ -40,6 +40,23 @@ public class ModelController {
         return ResponseEntity.ok(installModelUseCase.execute(model));
     }
 
+    @Operation(summary = "Modo agente: conversa com papéis + tool calling NATIVO (/api/chat do Ollama)")
+    @PostMapping(value = "/agent", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public void agent(@RequestParam String model,
+                      @RequestBody com.mcp.pikachu.domain.model.AgentRequest request,
+                      HttpServletRequest servletRequest, HttpServletResponse response) throws IOException {
+        log.info("Agent request for model: {} ({} mensagens, {} ferramentas)", model,
+                request.messages() == null ? 0 : request.messages().size(),
+                request.tools() == null ? 0 : request.tools().size());
+        AsyncContext asyncContext = servletRequest.startAsync();
+        asyncContext.setTimeout(600_000L);
+        try {
+            llmClientPort.agentStream(model, request, response);
+        } finally {
+            asyncContext.complete();
+        }
+    }
+
     @Operation(summary = "Send a prompt to any locally available Ollama model via ?model=<name>")
     @PostMapping(value = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public void chat(@RequestParam String model, @RequestBody ChatRequest request,
