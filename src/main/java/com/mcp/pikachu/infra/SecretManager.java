@@ -36,6 +36,7 @@ public class SecretManager {
     private static boolean carregado = false;
 
     private static final List<String> CAMINHOS_PADRAO = List.of(
+            "/app/secrets.txt",
             "/mnt/500gb/app/secrets.txt",
             System.getProperty("user.home") + "/Documents/app/secrets.txt",
             System.getProperty("user.home") + "/app/secrets.txt",
