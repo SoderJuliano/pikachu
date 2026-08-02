@@ -341,7 +341,15 @@ public class OllamaClientAdapter implements LlmClientPort {
     // milhares), o valor e calculado por request: pergunta curta continua barata e
     // rapida, prompt de agente recebe a janela que precisa, ate o teto.
     private static final int MIN_NUM_CTX = 4096;
-    private static final int OUTPUT_HEADROOM_TOKENS = 2048;
+    // ESPACO RESERVADO PRA SAIDA. Era 2048 e essa era a causa de "o modelo
+    // pensou e nao respondeu": o num_ctx e a menor potencia de 2 acima de
+    // (prompt + headroom), entao com headroom pequeno o modelo SEMPRE terminava
+    // com ~2 mil tokens de espaco pra gerar, qualquer que fosse a janela.
+    // Um modelo com raciocinio gasta 4000-6000 tokens SO PENSANDO antes de
+    // comecar a resposta (medido: 14048 chars = 4683 tokens de raciocinio num
+    // turno real). Ele estourava a janela no meio do pensamento, o Ollama
+    // parava, e o stream fechava com done:true e ZERO token de resposta.
+    private static final int OUTPUT_HEADROOM_TOKENS = 8192;
     private static final double CHARS_PER_TOKEN = 3.0; // conservador (codigo + PT-BR)
 
     @org.springframework.beans.factory.annotation.Value("${app.ollama.max-num-ctx:32768}")
