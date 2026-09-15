@@ -8,12 +8,12 @@ import java.io.IOException;
 
 public interface LlmClientPort {
 
-        /**
-         * Modo agente: /api/chat do Ollama com messages[] e tools[] NATIVOS.
-         * A chamada de ferramenta volta como objeto tipado (tool_calls), nao como
-         * texto que o modelo pode confundir com o proprio raciocinio.
-         */
-        void agentStream(String model, AgentRequest request, HttpServletResponse response) throws IOException;
+    /**
+     * Modo agente: /api/chat do Ollama com messages[] e tools[] NATIVOS.
+     * A chamada de ferramenta volta como objeto tipado (tool_calls), nao como
+     * texto que o modelo pode confundir com o proprio raciocinio.
+     */
+    void agentStream(String model, AgentRequest request, HttpServletResponse response) throws IOException;
 
 	String promptLlamaTiny(ChatRequest request);
 
@@ -25,11 +25,11 @@ public interface LlmClientPort {
 
 	void llamaStreamResponse(ChatRequest request, HttpServletResponse response) throws IOException;
 
-        void qwen36_17bStream(ChatRequest request, HttpServletResponse response) throws IOException;
+    void qwen36_17bStream(ChatRequest request, HttpServletResponse response) throws IOException;
 
-        void genericStream(String model, ChatRequest request, HttpServletResponse response) throws IOException;
+    void genericStream(String model, ChatRequest request, HttpServletResponse response) throws IOException;
 
-        String callModel(String model, ChatRequest request);
+    String callModel(String model, ChatRequest request);
 
-        String getAvailableModels();
+    String getAvailableModels();
 }
