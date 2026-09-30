@@ -25,6 +25,7 @@ public class ChatController {
 
     private final LlamaTinyUseCase llamaTinyUseCase;
     private final Llama3UseCase llama3UseCase;
+    private final Llama3RagUseCase llama3RagUseCase;
     private final Gemma3UseCase gemma3UseCase;
     private final Qwen25UseCase qwen25UseCase;
     private final LlamaStreamUseCase llamaStreamUseCase;
@@ -42,6 +43,13 @@ public class ChatController {
     public ResponseEntity<String> llama3(@RequestBody ChatRequest request) {
         log.info("Received llama3 request");
         return ResponseEntity.ok(llama3UseCase.execute(request));
+    }
+
+    @Operation(summary = "Generate text with Llama3 using RAG (Knowledge base: Java 17-27 & Spring Boot 2.6-4.2)")
+    @PostMapping("/llama3-rag")
+    public ResponseEntity<String> llama3Rag(@RequestBody ChatRequest request) {
+        log.info("Received llama3-rag request");
+        return ResponseEntity.ok(llama3RagUseCase.execute(request));
     }
 
     @Operation(summary = "Generate text with Gemma3")

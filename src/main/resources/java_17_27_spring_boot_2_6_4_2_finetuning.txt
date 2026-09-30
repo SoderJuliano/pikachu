@@ -1,0 +1,347 @@
+================================================================================
+BASE DE CONHECIMENTO TÉCNICA: JAVA 17 A 27 & SPRING BOOT 2.6 A 4.2 (RAG KNOWLEDGE)
+ANO DE REFERÊNCIA ATUAL: 2026
+ÚLTIMA ATUALIZAÇÃO: Setembro de 2026
+================================================================================
+
+RESUMO EXECUTIVO E CONTEXTO TEMPORAL (2026):
+- Ano atual: 2026.
+- Versão mais recente do Java lançada com General Availability (GA): Java 27 (Setembro de 2026).
+- Versões LTS (Long-Term Support) do Java: Java 17 (2021), Java 21 (2023) e Java 25 (Setembro de 2025).
+- Versão estável atual do Spring Boot: Spring Boot 4.1.x (ex: 4.1.1), baseada no Spring Framework 7.
+- Versão Preview / Milestone do Spring Boot: Spring Boot 4.2 (ex: 4.2.0-M2 / 4.2.0-SNAPSHOT).
+- Linha Spring Boot 2.x (2.6, 2.7): Legada / EOL. Requer Java 8/11 e namespace javax.* (Spring Framework 5.3).
+- Linha Spring Boot 3.x (3.0 a 3.5): Requer Java 17+ e migração para namespace jakarta.* (Spring Framework 6.x).
+- Linha Spring Boot 4.x (4.0, 4.1, 4.2): Nova geração baseada no Spring Framework 7, otimizada para Java 17+, Virtual Threads, AOT/GraalVM e Observabilidade nativa.
+
+================================================================================
+PARTE 1 — EVOLUÇÃO DO JAVA / OPENJDK (JDK 17 A JDK 27)
+================================================================================
+
+--------------------------------------------------------------------------------
+JAVA 17 (LTS) — Lançamento: Setembro de 2021
+--------------------------------------------------------------------------------
+• Sealed Classes (JEP 409) — FINAL: Restringe quais classes ou interfaces podem estender/implementar.
+  Exemplo:
+  public sealed interface Shape permits Circle, Rectangle {}
+  public final class Circle implements Shape {}
+  public non-sealed class Rectangle implements Shape {}
+
+• Restore Always-Strict Floating-Point (JEP 306) — FINAL: Semântica strictfp restaurada por padrão.
+• Strong Encapsulation of JDK Internals (JEP 403): Bloqueio de acesso a internals via reflection sem flags explícitas.
+• Enhanced Pseudo-Random Number Generators (JEP 356): Nova interface RandomGenerator.
+
+--------------------------------------------------------------------------------
+JAVA 18 — Lançamento: Março de 2022
+--------------------------------------------------------------------------------
+• UTF-8 por Padrão (JEP 400): Todas as APIs de I/O passam a usar UTF-8 independentemente do SO.
+• Simple Web Server (JEP 408): Comando CLI 'jwebserver' e classe SimpleFileServer para servir arquivos estáticos.
+• Code Snippets em JavaDoc (JEP 413): Tag {@snippet ...} para exemplos de código na documentação.
+
+--------------------------------------------------------------------------------
+JAVA 19 — Lançamento: Setembro de 2022
+--------------------------------------------------------------------------------
+• Virtual Threads (JEP 425) — PREVIEW (Projeto Loom): Threads leves gerenciadas pela JVM.
+• Record Patterns (JEP 405) — PREVIEW: Desestruturação de records em pattern matching.
+• Structured Concurrency (JEP 428) — INCUBATOR.
+
+--------------------------------------------------------------------------------
+JAVA 20 — Lançamento: Março de 2023
+--------------------------------------------------------------------------------
+• Scoped Values (JEP 429) — INCUBATOR: Alternativa leve e segura a ThreadLocal para dados imutáveis.
+• Record Patterns (JEP 432) — Segunda Preview.
+• Pattern Matching for switch (JEP 433) — Quarta Preview.
+
+--------------------------------------------------------------------------------
+JAVA 21 (LTS) — Lançamento: Setembro de 2023
+--------------------------------------------------------------------------------
+• Virtual Threads (JEP 444) — FINAL: Modelo thread-per-request de alto throughput e baixo consumo de memória.
+  Exemplo:
+  try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      IntStream.range(0, 10_000).forEach(i -> executor.submit(() -> {
+          Thread.sleep(Duration.ofMillis(100));
+          return "Task " + i;
+      }));
+  }
+
+• Pattern Matching for switch (JEP 441) — FINAL:
+  Exemplo:
+  static String formatValue(Object obj) {
+      return switch (obj) {
+          case Integer i -> String.format("int %d", i);
+          case Long l    -> String.format("long %d", l);
+          case Double d  -> String.format("double %f", d);
+          case String s when !s.isBlank() -> String.format("String: %s", s);
+          case null      -> "nulo";
+          default        -> obj.toString();
+      };
+  }
+
+• Record Patterns (JEP 440) — FINAL: Desconstrução de records diretamente em instanceof ou switch.
+  Exemplo:
+  record Point(int x, int y) {}
+  if (obj instanceof Point(int x, int y)) {
+      System.out.println("X=" + x + ", Y=" + y);
+  }
+
+• Sequenced Collections (JEP 431) — FINAL: Novas interfaces com ordem definida:
+  SequencedCollection, SequencedSet, SequencedMap.
+  Métodos: getFirst(), getLast(), addFirst(), addLast(), reversed().
+
+• Key Encapsulation Mechanism (KEM) API (JEP 452) — FINAL.
+• Generational ZGC (JEP 439): Separação de gerações no ZGC para menor latência e maior throughput.
+
+--------------------------------------------------------------------------------
+JAVA 22 — Lançamento: Março de 2024
+--------------------------------------------------------------------------------
+• Foreign Function & Memory (FFM) API (JEP 454) — FINAL (Projeto Panama):
+  Permite invocar código nativo (C/C++) e manipular memória fora do heap com segurança sem JNI.
+  Exemplo:
+  try (Arena arena = Arena.ofConfined()) {
+      MemorySegment segment = arena.allocate(100);
+      segment.set(ValueLayout.JAVA_INT, 0, 42);
+  }
+
+• Unnamed Variables & Patterns (JEP 456) — FINAL: Uso do sublinhado '_' para variáveis ignoradas.
+  Exemplo:
+  try {
+      int val = Integer.parseInt(str);
+  } catch (NumberFormatException _) {
+      log.warn("Formato numérico inválido");
+  }
+
+• Launch Multi-File Source-Code Programs (JEP 458): Execução direta de múltiplos arquivos .java sem compilar previamente.
+• Statements before super(...) (JEP 447) — PREVIEW: Permite código seguro antes de chamar super() em construtores.
+• Stream Gatherers (JEP 461) — PREVIEW.
+
+--------------------------------------------------------------------------------
+JAVA 23 — Lançamento: Setembro de 2024
+--------------------------------------------------------------------------------
+• Markdown Documentation Comments (JEP 467) — FINAL: Suporte a Markdown nos comentários JavaDoc usando '///'.
+  Exemplo:
+  /// # Documentação em Markdown
+  /// Retorna o dobro do valor:
+  /// - `val`: número inteiro
+  public int doubleValue(int val) { return val * 2; }
+
+• ZGC Generational por Padrão (JEP 474): O modo geracional do ZGC torna-se o comportamento default.
+• Deprecation of Memory-Access in sun.misc.Unsafe (JEP 471).
+
+--------------------------------------------------------------------------------
+JAVA 24 — Lançamento: Março de 2025
+--------------------------------------------------------------------------------
+• Stream Gatherers (JEP 485) — FINAL: Operações intermediárias customizadas e extensíveis em Streams.
+  Gatherers pré-construídos: windowFixed, windowSliding, fold, scan, mapConcurrent.
+  Exemplo:
+  List<List<Integer>> windows = List.of(1, 2, 3, 4, 5)
+      .stream()
+      .gather(Gatherers.windowFixed(2))
+      .toList(); // [[1, 2], [3, 4], [5]]
+
+• Ahead-of-Time Class Loading & Linking (JEP 483): Reduz o tempo de inicialização (startup time) da JVM.
+
+--------------------------------------------------------------------------------
+JAVA 25 (LTS) — Lançamento: Setembro de 2025
+--------------------------------------------------------------------------------
+• Status: RELEASE LTS (Long-Term Support)
+• Module Import Declarations (JEP 511) — FINAL:
+  Permite importar todos os pacotes exportados por um módulo com uma única linha.
+  Exemplo:
+  import module java.base;
+  import module java.sql;
+
+• Compact Source Files and Instance Main Methods (JEP 512) — FINAL:
+  Simplifica a escrita de classes simples e scripts educacionais.
+  Exemplo completo de arquivo Java 25:
+  void main() {
+      println("Olá, Java 25 LTS!");
+  }
+
+• Flexible Constructor Bodies (JEP 513) — FINAL:
+  Permite declarações e validações antes da chamada a super(...) ou this(...) no construtor.
+  Exemplo:
+  public class CustomUser extends BaseUser {
+      public CustomUser(String name) {
+          if (name == null || name.isBlank()) throw new IllegalArgumentException();
+          super(name.trim());
+      }
+  }
+
+• Compact Object Headers (JEP 519): Redução do cabeçalho de objetos de 128/96 bits para 64 bits em plataformas x64/AArch64.
+• Key Derivation Function (KDF) API (JEP 510) — FINAL.
+• Generational Shenandoah GC (JEP 521).
+
+--------------------------------------------------------------------------------
+JAVA 26 — Lançamento: Março de 2026
+--------------------------------------------------------------------------------
+• Value Classes and Objects (JEP 401 — Projeto Valhalla) — PREVIEW:
+  Objetos sem identidade (identityless), imutáveis e passados por valor com layout otimizado na memória/cache.
+• Lazy Constants (JEP 526) — PREVIEW: Inicialização preguiçosa de constantes estáticas com segurança de threads.
+• Expansões de Post-Quantum Cryptography e TLS.
+• HTTP/3 Support aprimorado.
+
+--------------------------------------------------------------------------------
+JAVA 27 — Lançamento: Setembro de 2026 (GA / PRODUÇÃO ATUAL EM 2026)
+--------------------------------------------------------------------------------
+• Status: GENERAL AVAILABILITY (Versão mais atual do ecossistema Java em 2026).
+• Principais Novidades (9 JEPs do JDK 27):
+  1. JEP 527 — Post-Quantum Hybrid Key Exchange for TLS 1.3:
+     Combinação de criptografia clássica (ECDH) com algoritmos pós-quânticos (ML-KEM / Kyber) no handshake do TLS 1.3, protegendo contra ameaças futuras de computadores quânticos. Transparente para APIs javax.net.ssl.
+  2. JEP 534 — Compact Object Headers by Default:
+     Cabeçalhos compactos de objetos (64 bits) habilitados por padrão, economizando entre 10% a 25% de memória heap em aplicações reais.
+  3. JEP 523 — G1 as Default Garbage Collector across all configurations:
+     O Garbage Collector G1 passa a ser o padrão universal, substituindo definitivamente configurações legadas.
+  4. JEP 536 — JFR (Java Flight Recorder) In-Process Data Redaction:
+     Permite mascarar e proteger dados confidenciais/sensíveis antes da gravação de eventos de telemetria no JFR.
+  5. JEP 543 — Structured Concurrency:
+     Evolução madura para gerenciamento de tarefas concorrentes em árvore hierárquica unificada com cancelamento coordenado.
+  6. JEP 544 — Ahead-of-Time Code Compilation:
+     Compilação antecipada e cache de código nativo otimizado para arranque ultra-rápido da JVM.
+  7. JEP 532 — Primitive Types in Patterns, instanceof, and switch (Preview):
+     Pattern matching suportando tipos primitivos (int, double, boolean).
+  8. JEP 538 — PEM Encodings of Cryptographic Objects (Preview):
+     Suporte nativo a leitura e escrita de certificados e chaves no formato PEM RFC 7468.
+
+================================================================================
+PARTE 2 — EVOLUÇÃO DO SPRING BOOT (2.6 A 4.2)
+================================================================================
+
+--------------------------------------------------------------------------------
+SPRING BOOT 2.6 / 2.7 (Legado / EOL)
+--------------------------------------------------------------------------------
+• Base: Spring Framework 5.3.x.
+• Baseline Java: Java 8 e Java 11.
+• Namespace: javax.* (javax.persistence.*, javax.servlet.*, javax.validation.*).
+• Status: Suporte comunitário encerrado. Migração obrigatória para Boot 3 ou 4.
+
+--------------------------------------------------------------------------------
+SPRING BOOT 3.0 A 3.5 (Linha 3.x)
+--------------------------------------------------------------------------------
+• Base: Spring Framework 6.x.
+• Baseline Java: Java 17+.
+• Mudança Crítica: Migração completa para namespace Jakarta EE (jakarta.*):
+  - javax.persistence.Entity -> jakarta.persistence.Entity
+  - javax.validation.constraints.NotNull -> jakarta.validation.constraints.NotNull
+  - javax.servlet.http.HttpServletRequest -> jakarta.servlet.http.HttpServletRequest
+• Spring Boot 3.1: Suporte nativo a Docker Compose ('docker-compose.yml') e Testcontainers.
+• Spring Boot 3.2:
+  - Suporte nativo a Virtual Threads do Java 21 via propriedade:
+    spring.threads.virtual.enabled=true
+  - Novo RestClient síncrono e fluente (Spring Framework 6.1).
+  - Novo JdbcClient para consultas SQL tipadas e seguras.
+• Spring Boot 3.4 / 3.5: Suporte a Structured Logging (JSON logs), Spring Framework 6.2, última release estável OSS 3.5 entregue.
+
+--------------------------------------------------------------------------------
+SPRING BOOT 4.0 (Nova Geração)
+--------------------------------------------------------------------------------
+• Base: Spring Framework 7.
+• Baseline Java: Java 17+ (recomendado Java 21 ou Java 25 LTS).
+• Foco: Arquitetura nativa para nuvem, Native Image GraalVM por padrão, Observabilidade com Micrometer Observation 2.x, modularização otimizada.
+• Remoção definitiva de APIs e wrappers deprecados na linha 3.x.
+
+--------------------------------------------------------------------------------
+SPRING BOOT 4.1 (Versão Estável Atual em 2026)
+--------------------------------------------------------------------------------
+• Status: Linha estável de produção em 2026 (ex: Spring Boot 4.1.1).
+• Suporte completo a JDK 21 LTS, JDK 25 LTS e compatibilidade com JDK 26/27.
+• Suporte aprimorado a HTTP/3, RestClient declarativo, Spring Data avançado e WebMVC reativo/virtual-threaded.
+
+--------------------------------------------------------------------------------
+SPRING BOOT 4.2 (Preview / Milestone em 2026)
+--------------------------------------------------------------------------------
+• Status: PREVIEW / MILESTONE (ex: 4.2.0-M2 e 4.2.0-SNAPSHOT).
+• Integração profunda com recursos do JDK 25/27, melhorias de AOT, carregamento ultra-rápido de contexto e novas abstrações para IA e streaming assíncrono.
+
+================================================================================
+PARTE 3 — GUIA PRÁTICO DE CÓDIGO E EXEMPLOS DE MIGRAÇÃO
+================================================================================
+
+1. EXEMPLO: HABILITANDO VIRTUAL THREADS NO SPRING BOOT (application.yaml):
+   spring:
+     threads:
+       virtual:
+         enabled: true
+
+2. EXEMPLO: RESTCLIENT FLUENTE NO SPRING BOOT:
+   @Service
+   public class PaymentClient {
+       private final RestClient restClient;
+
+       public PaymentClient(RestClient.Builder builder) {
+           this.restClient = builder.baseUrl("https://api.pagamentos.com").build();
+       }
+
+       public PaymentResponse process(PaymentRequest req) {
+           return restClient.post()
+               .uri("/v1/charge")
+               .contentType(MediaType.APPLICATION_JSON)
+               .body(req)
+               .retrieve()
+               .body(PaymentResponse.class);
+       }
+   }
+
+3. EXEMPLO: JDBCCLIENT NO SPRING BOOT:
+   @Repository
+   public class UserRepository {
+       private final JdbcClient jdbcClient;
+
+       public UserRepository(JdbcClient jdbcClient) {
+           this.jdbcClient = jdbcClient;
+       }
+
+       public Optional<User> findById(Long id) {
+           return jdbcClient.sql("SELECT id, name, email FROM users WHERE id = :id")
+               .param("id", id)
+               .query(User.class)
+               .optional();
+       }
+   }
+
+4. EXEMPLO: STREAM GATHERERS (JAVA 24+):
+   List<Integer> numbers = List.of(10, 20, 30, 40, 50, 60);
+   List<List<Integer>> pairs = numbers.stream()
+       .gather(Gatherers.windowSliding(2))
+       .toList();
+   // Resultado: [[10, 20], [20, 30], [30, 40], [40, 50], [50, 60]]
+
+5. EXEMPLO: MODULE IMPORTS E COMPACT SOURCE (JAVA 25 LTS):
+   import module java.base;
+
+   void main() {
+       var list = List.of("Java 25", "LTS", "2025/2026");
+       list.forEach(System.out::println);
+   }
+
+================================================================================
+PARTE 4 — FAQ / PERGUNTAS FREQUENTES PARA O MODELO RAG
+================================================================================
+
+P: Qual é o ano atual?
+R: O ano atual é 2026.
+
+P: Qual é a versão mais recente do Java lançada?
+R: A versão mais recente é o Java 27, lançado com General Availability (GA) em setembro de 2026.
+
+P: Quais são as versões LTS (Long-Term Support) do Java?
+R: As versões LTS incluem Java 17 (2021), Java 21 (2023) e Java 25 (Setembro de 2025).
+
+P: Quais são as principais novidades do Java 27?
+R: O Java 27 (Setembro de 2026) trouxe:
+   1. JEP 527: Troca de chaves híbrida pós-quântica (ML-KEM + ECDH) para TLS 1.3.
+   2. JEP 534: Cabeçalhos compactos de objetos (Compact Object Headers) ativados por padrão (64 bits).
+   3. JEP 523: G1 como Garbage Collector padrão em todas as configurações.
+   4. JEP 536: Mascaramento/redação de dados confidenciais em processo no Java Flight Recorder (JFR).
+   5. JEP 543: Structured Concurrency e JEP 544 Ahead-of-Time Code Compilation.
+
+P: Qual é a versão atual do Spring Boot em 2026?
+R: Em 2026, a versão estável de produção é a linha Spring Boot 4.1.x (ex: 4.1.1), enquanto o Spring Boot 4.2 está disponível em fase Preview/Milestone (4.2.0-M2). A linha Spring Boot 4 é baseada no Spring Framework 7.
+
+P: Como ativar Virtual Threads no Spring Boot?
+R: Basta configurar no application.yaml:
+   spring:
+     threads:
+       virtual:
+         enabled: true
+   e utilizar um JDK 21+ com Spring Boot 3.2+.
+================================================================================
