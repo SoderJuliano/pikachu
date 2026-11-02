@@ -21,3 +21,24 @@ Este projeto é uma aplicação que utiliza diferentes serviços de API de intel
 
 - src/main/java/com/mcp/pikachu/adapter/in/web/: Contém o controlador web e as exceções globais.
 - src/main/java/com/mcp/pikachu/adapter/out/ollama/: Contém a adaptação do cliente para a API Ollama.
+## Módulo wowlk — contas do WoW Classic Plus LK (sem IA)
+
+Pacote `com.mcp.pikachu.wowlk`. Cria contas no AzerothCore (`acore_auth`, MariaDB local) e
+faz login do launcher. Contratos: `launcher-wowlk-classic-plus/docs/API_CONTRACT.md` e
+`wowlk-classic-plus-site/docs/QUEUE_CONTRACT.md`.
+
+**Rotas** (`/launcher/v1`): `GET /health`, `POST /auth/login` (`username` do launcher ou
+`login` do site = usuário ou e-mail), `POST /auth/refresh`, `POST /auth/logout`,
+`POST /auth/register` (senha ou salt/verifier SRP6), `GET /manifest/{client}` (404 até haver manifesto).
+
+**Fila de cadastro:** a cada 2 min lê a chave de cadastro na Abra API, cria a conta **ativa**
+(jogador comum, sem `account_access`), apaga só a mensagem processada (por id) e manda e-mail
+texto de "conta ativada". Erro transitório: tenta de novo no próximo ciclo; na 3ª falha manda
+e-mail de desculpas e remove. Nome/e-mail em uso ou payload inválido não são re-tentados.
+Logs com prefixo `[wowlk]` (`cadastro OK`, `cadastro FALHOU`, `cadastro RECUSADO`).
+
+**Segredos** (no `secrets.txt`, nunca no git):
+`WOWLK_QUEUE_REGISTRATION_KEY`, `WOWLK_QUEUE_EVENTS_KEY`, `WOWLK_DB_URL`, `WOWLK_DB_USER`,
+`WOWLK_DB_PASSWORD`, opcional `WOWLK_QUEUE_PRIVATE_KEY_PATH` (fila cifrada do site).
+O usuário do banco só tem SELECT/INSERT em `acore_auth.account`, SELECT em `account_banned`/`account_access`
+e tudo em `wowlk_site` (sessões e histórico da fila, criado sozinho).

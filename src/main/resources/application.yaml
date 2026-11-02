@@ -27,3 +27,24 @@ app:
     # num 35b de 24GB. KV cache cresce linear com a janela — se der OOM no
     # servidor, baixe de volta pra 32768. Subir pra 131072+ so com VRAM sobrando.
     max-num-ctx: 65536
+
+# Modulo WoW Classic Plus LK (contas AzerothCore). Chaves da fila e credenciais do
+# banco NAO ficam aqui: vem do secrets.txt (WOWLK_QUEUE_REGISTRATION_KEY,
+# WOWLK_QUEUE_EVENTS_KEY, WOWLK_DB_URL, WOWLK_DB_USER, WOWLK_DB_PASSWORD e,
+# opcional, WOWLK_QUEUE_PRIVATE_KEY_PATH).
+wowlk:
+  enabled: true
+  abra-base-url: https://abra-api.top
+  poll-interval-ms: 120000      # consulta a fila de cadastro a cada 2 min
+  poll-initial-delay-ms: 20000
+  max-attempts: 3               # na 3a falha: e-mail de desculpas e a mensagem sai da fila
+  max-registrations-per-run: 100
+  access-token-ttl-seconds: 900
+  refresh-token-ttl-seconds: 2592000
+  min-launcher-version: 0.1.0
+  maintenance: false
+  realmlist: ru2esxz6.free.tryportwarp.cc:16943
+  cors-origins:
+    - https://wowclassicpluslk.com
+    - http://localhost:5173
+    - http://localhost:4173
