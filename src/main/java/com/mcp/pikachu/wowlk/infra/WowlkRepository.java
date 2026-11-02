@@ -16,7 +16,7 @@ import java.util.Optional;
 
 /**
  * Acesso ao MariaDB do AzerothCore.
- * - {@code acore_auth.account}: so SELECT e INSERT (o usuario pikachu_wowlk nao tem mais que isso).
+ * - {@code acore_auth.account}: SELECT, INSERT e UPDATE so de salt/verifier (o usuario pikachu_wowlk nao tem mais que isso).
  * - schema proprio {@code wowlk_site}: sessoes do launcher e historico do processamento da fila.
  * Contas sao criadas SEM linha em account_access (= jogador comum, sem GM/admin).
  */
@@ -132,6 +132,16 @@ public class WowlkRepository {
                 accountId).stream().findFirst();
     }
 
+    /** GM/admin em qualquer realm: fica de fora da troca de senha pelo site. */
+    public boolean isPrivileged(long accountId) {
+        Integer n = jdbc.queryForObject("SELECT COUNT(*) FROM acore_auth.account_access WHERE id = ? AND gmlevel > 0", Integer.class, accountId);
+        return n != null && n > 0;
+    }
+
+    public void updatePassword(long accountId, byte[] salt, byte[] verifier) {
+        jdbc.update("UPDATE acore_auth.account SET salt = ?, verifier = ? WHERE id = ?", salt, verifier, accountId);
+    }
+
     // ---------------------------------------------------------------- registration_event
 
     public Optional<String> registrationStatus(String payloadId) {
@@ -202,6 +212,12 @@ public class WowlkRepository {
 
     public void revokeSession(long sessionId) {
         jdbc.update("UPDATE auth_session SET revoked_at = UTC_TIMESTAMP() WHERE id = ? AND revoked_at IS NULL", sessionId);
+    }
+
+    /** Senha trocada: derruba todas as sessoes do launcher dessa conta. */
+    public void revokeAllSessions(long accountId) {
+        ensureSchema();
+        jdbc.update("UPDATE auth_session SET revoked_at = UTC_TIMESTAMP() WHERE account_id = ? AND revoked_at IS NULL", accountId);
     }
 
     public int purgeExpiredSessions() {

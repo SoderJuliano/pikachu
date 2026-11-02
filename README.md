@@ -37,8 +37,12 @@ texto de "conta ativada". Erro transitório: tenta de novo no próximo ciclo; na
 e-mail de desculpas e remove. Nome/e-mail em uso ou payload inválido não são re-tentados.
 Logs com prefixo `[wowlk]` (`cadastro OK`, `cadastro FALHOU`, `cadastro RECUSADO`).
 
+**Troca de senha:** evento `password.recover` da fila de eventos, processado a cada 2 min. Só aplica
+se usuário e e-mail baterem; conta GM/admin fica de fora; 5 tentativas por usuário por hora; derruba as
+sessões do launcher. Os outros tipos de evento só são contados no log e continuam na fila.
+
 **Segredos** (no `secrets.txt`, nunca no git):
 `WOWLK_QUEUE_REGISTRATION_KEY`, `WOWLK_QUEUE_EVENTS_KEY`, `WOWLK_DB_URL`, `WOWLK_DB_USER`,
 `WOWLK_DB_PASSWORD`, opcional `WOWLK_QUEUE_PRIVATE_KEY_PATH` (fila cifrada do site).
-O usuário do banco só tem SELECT/INSERT em `acore_auth.account`, SELECT em `account_banned`/`account_access`
+O usuário do banco só tem SELECT/INSERT e UPDATE de `salt`/`verifier` em `acore_auth.account`, SELECT em `account_banned`/`account_access`
 e tudo em `wowlk_site` (sessões e histórico da fila, criado sozinho).

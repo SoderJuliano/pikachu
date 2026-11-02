@@ -45,6 +45,26 @@ public class AccountMailer {
         return send(email, subject, body, "falha");
     }
 
+    public boolean sendPasswordChanged(String email, String username, boolean pt) {
+        String subject = pt ? "WoW Classic Plus LK - senha alterada" : "WoW Classic Plus LK - password changed";
+        String body = pt
+                ? "Ola!\n\nA senha da conta " + username + " foi alterada pelo site.\n"
+                  + "Se nao foi voce, troque a senha de novo agora e responda a equipe do servidor.\n\nEquipe WoW Classic Plus LK"
+                : "Hello!\n\nThe password of account " + username + " was changed on the website.\n"
+                  + "If this was not you, change it again now and contact the server team.\n\nThe WoW Classic Plus LK team";
+        return send(email, subject, body, "senha alterada");
+    }
+
+    public boolean sendPasswordFailed(String email, String username, boolean pt) {
+        String subject = pt ? "WoW Classic Plus LK - senha nao alterada" : "WoW Classic Plus LK - password not changed";
+        String body = pt
+                ? "Ola!\n\nNao conseguimos alterar a senha da conta " + username + " por um problema no nosso servidor. "
+                  + "Pedimos desculpas. Sua senha antiga continua valendo; tente novamente mais tarde.\n\nEquipe WoW Classic Plus LK"
+                : "Hello!\n\nWe could not change the password of account " + username + " because of a problem on our server. "
+                  + "We are sorry. Your old password still works; please try again later.\n\nThe WoW Classic Plus LK team";
+        return send(email, subject, body, "falha de senha");
+    }
+
     /** Nome ou e-mail ja em uso. Nao diz qual dos dois (evita enumeracao de contas). */
     public boolean sendConflict(String email, String username, boolean pt) {
         String subject = pt ? "WoW Classic Plus LK - cadastro nao concluido" : "WoW Classic Plus LK - registration not completed";
