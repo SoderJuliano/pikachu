@@ -44,3 +44,4 @@ wowlk:
   min-launcher-version: 0.1.0
   maintenance: false
   realmlist: ru2esxz6.free.tryportwarp.cc:16943
+  manifest-dir: /app/manifests   # <cliente>.json: o que o launcher baixa em GET /launcher/v1/manifest/<cliente>

@@ -29,7 +29,7 @@ faz login do launcher. Contratos: `launcher-wowlk-classic-plus/docs/API_CONTRACT
 
 **Rotas** (`/launcher/v1`): `GET /health`, `POST /auth/login` (`username` do launcher ou
 `login` do site = usuário ou e-mail), `POST /auth/refresh`, `POST /auth/logout`,
-`POST /auth/register` (senha ou salt/verifier SRP6), `GET /manifest/{client}` (404 até haver manifesto).
+`POST /auth/register` (senha ou salt/verifier SRP6), `GET /manifest/{client}` (entrega `manifest-dir/<cliente>.json`; 404 se não existir).
 
 **Fila de cadastro:** a cada 2 min lê a chave de cadastro na Abra API, cria a conta **ativa**
 (jogador comum, sem `account_access`), apaga só a mensagem processada (por id) e manda e-mail

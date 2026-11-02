@@ -30,7 +30,7 @@ class RegistrationQueueWorkerTest {
         repo = mock(WowlkRepository.class);
         registration = mock(AccountRegistrationService.class);
         mailer = mock(AccountMailer.class);
-        WowlkProperties props = new WowlkProperties(true, "https://x", 120000, 0, 3, 100, 900, 2592000, "0.1.0", false, "");
+        WowlkProperties props = new WowlkProperties(true, "https://x", 120000, 0, 3, 100, 900, 2592000, "0.1.0", false, "", "/tmp");
         worker = new RegistrationQueueWorker(abra, repo, registration, mailer, new QueuePayloadDecryptor(), props);
         when(repo.registrationStatus(any())).thenReturn(Optional.empty());
     }

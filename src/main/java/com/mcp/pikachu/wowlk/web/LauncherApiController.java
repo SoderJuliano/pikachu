@@ -15,6 +15,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Map;
 
@@ -112,14 +115,17 @@ public class LauncherApiController {
                 Map.of("id", r.accountId(), "username", account.username(), "email_verified", true), "active"));
     }
 
-    @Operation(summary = "Manifesto de atualizacao do cliente (ainda nao publicado)")
-    @GetMapping("/manifest/{client}")
-    public Map<String, Object> manifest(@PathVariable String client, HttpServletRequest req) {
+    @Operation(summary = "Manifesto de atualizacao do cliente")
+    @GetMapping(value = "/manifest/{client}", produces = "application/json")
+    public String manifest(@PathVariable String client, HttpServletRequest req) throws IOException {
         guard(req, false);
         auth.authenticate(bearer(req));
-        // Manifestos ainda nao sao publicados pelo Pikachu: 404 e o comportamento do contrato
-        // para cliente "nao publicado" (o launcher segue funcionando sem atualizacao incremental).
-        throw new ApiException(ErrorCode.NOT_FOUND, "No update manifest published for this client yet.");
+        // O nome vira caminho de arquivo: so aceita o formato dos ids de cliente (wow32, wow64).
+        if (!client.matches("[a-z0-9]{1,16}")) throw new ApiException(ErrorCode.NOT_FOUND, "Unknown client.");
+        Path file = Path.of(props.manifestDir(), client + ".json");
+        if (!Files.isRegularFile(file))
+            throw new ApiException(ErrorCode.NOT_FOUND, "No update manifest published for this client yet.");
+        return Files.readString(file);
     }
 
     // ------------------------------------------------------------------ helpers
