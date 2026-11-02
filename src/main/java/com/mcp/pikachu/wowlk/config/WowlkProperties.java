@@ -17,6 +17,8 @@ public record WowlkProperties(
         @DefaultValue("0.1.0") String minLauncherVersion,
         @DefaultValue("false") boolean maintenance,
         @DefaultValue("") String realmlist,
-        @DefaultValue("/app/manifests") String manifestDir
+        @DefaultValue("/app/manifests") String manifestDir,
+        @DefaultValue("20") int residentBots,
+        @DefaultValue("8085") int worldPort
 ) {
 }

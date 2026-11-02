@@ -45,3 +45,5 @@ wowlk:
   maintenance: false
   realmlist: ru2esxz6.free.tryportwarp.cc:16943
   manifest-dir: /app/manifests   # <cliente>.json: o que o launcher baixa em GET /launcher/v1/manifest/<cliente>
+  resident-bots: 20             # somado a jogadores online e contas no painel do site
+  world-port: 8085

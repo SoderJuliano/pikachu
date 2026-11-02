@@ -142,6 +142,17 @@ public class WowlkRepository {
         jdbc.update("UPDATE acore_auth.account SET salt = ?, verifier = ? WHERE id = ?", salt, verifier, accountId);
     }
 
+    /** Contas de gente: sem os bots, as contas de teste AGENTE* e a linha ADM, que so reserva o nome. */
+    private static final String HUMANAS = "username NOT LIKE 'RNDBOT%' AND username NOT LIKE 'AGENTE%' AND username <> 'ADM'";
+
+    public int countHumanAccounts() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM acore_auth.account WHERE " + HUMANAS, Integer.class);
+    }
+
+    public int countHumansOnline() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM acore_auth.account WHERE online <> 0 AND " + HUMANAS, Integer.class);
+    }
+
     // ---------------------------------------------------------------- registration_event
 
     public Optional<String> registrationStatus(String payloadId) {

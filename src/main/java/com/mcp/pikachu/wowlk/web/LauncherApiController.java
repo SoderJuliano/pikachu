@@ -3,6 +3,7 @@ package com.mcp.pikachu.wowlk.web;
 import com.mcp.pikachu.wowlk.application.AccountMailer;
 import com.mcp.pikachu.wowlk.application.AccountRegistrationService;
 import com.mcp.pikachu.wowlk.application.AuthService;
+import com.mcp.pikachu.wowlk.application.RealmStatusService;
 import com.mcp.pikachu.wowlk.config.WowlkProperties;
 import com.mcp.pikachu.wowlk.domain.ApiException;
 import com.mcp.pikachu.wowlk.domain.ErrorCode;
@@ -54,18 +55,27 @@ public class LauncherApiController {
     private final AccountRegistrationService registration;
     private final AccountMailer mailer;
     private final WowlkProperties props;
+    private final RealmStatusService realmStatus;
 
-    public LauncherApiController(AuthService auth, AccountRegistrationService registration, AccountMailer mailer, WowlkProperties props) {
+    public LauncherApiController(AuthService auth, AccountRegistrationService registration, AccountMailer mailer, WowlkProperties props,
+                                 RealmStatusService realmStatus) {
         this.auth = auth;
         this.registration = registration;
         this.mailer = mailer;
         this.props = props;
+        this.realmStatus = realmStatus;
     }
 
     @Operation(summary = "Estado da API do launcher")
     @GetMapping("/health")
     public Map<String, Object> health() {
         return Map.of("service", "pikachu", "api_version", 1, "maintenance", props.maintenance(), "time", Instant.now().toString());
+    }
+
+    @Operation(summary = "Estado do reino para o painel do site (sem login)")
+    @GetMapping("/status")
+    public RealmStatusService.RealmStatus status() {
+        return realmStatus.current();
     }
 
     @Operation(summary = "Login com usuario (ou e-mail) e senha; devolve access/refresh token")

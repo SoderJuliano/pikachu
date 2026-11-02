@@ -30,7 +30,7 @@ class PasswordRecoveryServiceTest {
         abra = mock(AbraClient.class);
         repo = mock(WowlkRepository.class);
         mailer = mock(AccountMailer.class);
-        WowlkProperties props = new WowlkProperties(true, "https://x", 120000, 0, 3, 100, 900, 2592000, "0.1.0", false, "", "/tmp");
+        WowlkProperties props = new WowlkProperties(true, "https://x", 120000, 0, 3, 100, 900, 2592000, "0.1.0", false, "", "/tmp", 20, 8085);
         service = new PasswordRecoveryService(abra, repo, mailer, props);
         when(repo.findByUsername("ARTHAS")).thenReturn(Optional.of(ARTHAS));
     }
