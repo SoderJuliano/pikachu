@@ -3,8 +3,6 @@ package com.mcp.pikachu.wowlk.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
-import java.util.List;
-
 /** Configuracao nao-secreta do modulo wowlk (application.yaml, prefixo {@code wowlk}). */
 @ConfigurationProperties("wowlk")
 public record WowlkProperties(
@@ -18,7 +16,6 @@ public record WowlkProperties(
         @DefaultValue("2592000") long refreshTokenTtlSeconds,
         @DefaultValue("0.1.0") String minLauncherVersion,
         @DefaultValue("false") boolean maintenance,
-        @DefaultValue("") String realmlist,
-        @DefaultValue({}) List<String> corsOrigins
+        @DefaultValue("") String realmlist
 ) {
 }

@@ -44,7 +44,3 @@ wowlk:
   min-launcher-version: 0.1.0
   maintenance: false
   realmlist: ru2esxz6.free.tryportwarp.cc:16943
-  cors-origins:
-    - https://wowclassicpluslk.com
-    - http://localhost:5173
-    - http://localhost:4173

@@ -50,15 +50,18 @@ public class WowlkConfig implements WebMvcConfigurer {
         return new HikariDataSource(cfg);
     }
 
+    /**
+     * Sem cookies: os tokens voltam no corpo da resposta, entao nao ha credencial automatica
+     * do navegador para proteger, e o site pode ser publicado em qualquer dominio.
+     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        if (props.corsOrigins().isEmpty()) return;
         registry.addMapping("/launcher/v1/**")
-                .allowedOrigins(props.corsOrigins().toArray(String[]::new))
+                .allowedOriginPatterns("*")
                 .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("*")
                 .exposedHeaders("Retry-After")
-                .allowCredentials(true)
+                .allowCredentials(false)
                 .maxAge(3600);
     }
 }
