@@ -62,8 +62,8 @@ donation:
   notification-url: ""          # vazio = usa a URL configurada no painel de Webhooks do Mercado Pago
   test-payer-email: ""          # so em teste: e-mail do comprador de teste
   currency: BRL
-  min-amount: 5
+  min-amount: 1
   max-amount: 1000
-  fixed-amount: 29.90           # valor unico da doacao (BRL); 0 = valor livre entre min e max
-  usd-equivalent: 5.04          # so exibicao fora do Brasil (cambio de 22/11/2026: 1 BRL = 0,1684 USD)
+  fixed-amount: 1.00            # valor unico da doacao (BRL); 0 = valor livre entre min e max
+  usd-equivalent: 0.17          # so exibicao fora do Brasil (cambio de 22/11/2026: 1 BRL = 0,1684 USD)
   pix-expiration-minutes: 30
