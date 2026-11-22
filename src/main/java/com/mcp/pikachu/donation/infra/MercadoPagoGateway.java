@@ -59,10 +59,49 @@ public class MercadoPagoGateway implements PaymentGateway {
 
     @Override
     public Payment createPix(Charge charge, int expirationMinutes) {
-        ObjectNode body = base(charge);
-        body.put("payment_method_id", "pix");
-        body.put("date_of_expiration", OffsetDateTime.now(BRT).plusMinutes(expirationMinutes).format(MP_DATE));
-        return create(body, charge.idempotencyKey());
+        try {
+            return createOrderPix(charge, expirationMinutes);
+        } catch (ApiException e) {
+            log.warn("[donation] criacao via /v1/orders falhou ({}), tentando /v1/payments", e.getMessage());
+            ObjectNode body = base(charge);
+            body.put("payment_method_id", "pix");
+            body.put("date_of_expiration", OffsetDateTime.now(BRT).plusMinutes(expirationMinutes).format(MP_DATE));
+            return create(body, charge.idempotencyKey());
+        }
+    }
+
+    private Payment createOrderPix(Charge charge, int expirationMinutes) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("type", "online");
+        body.put("processing_mode", "automatic");
+        body.put("total_amount", charge.amount().setScale(2, java.math.RoundingMode.HALF_UP).toString());
+        body.put("external_reference", charge.externalReference());
+        body.put("description", charge.description());
+        if (notificationUrl != null) body.put("notification_url", notificationUrl);
+        ObjectNode payer = body.putObject("payer");
+        payer.put("email", charge.payerEmail());
+        payer.put("first_name", "Apoiador");
+        payer.put("last_name", "WoW");
+
+        ObjectNode tx = body.putObject("transactions");
+        var payments = tx.putArray("payments");
+        ObjectNode p0 = payments.addObject();
+        p0.put("amount", charge.amount().setScale(2, java.math.RoundingMode.HALF_UP).toString());
+        ObjectNode pm = p0.putObject("payment_method");
+        pm.put("id", "pix");
+        pm.put("type", "bank_transfer");
+
+        HttpRequest req = request("/v1/orders")
+                .header("Content-Type", "application/json")
+                .header("X-Idempotency-Key", charge.idempotencyKey())
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                .build();
+        HttpResponse<String> res = send(req);
+        if (res.statusCode() / 100 == 2) return parseOrder(res.body(), charge);
+        log.warn("[donation] Mercado Pago recusou criacao da order: HTTP {} {}", res.statusCode(), abbreviate(res.body()));
+        if (res.statusCode() == 400 || res.statusCode() == 422)
+            throw new ApiException(ErrorCode.VALIDATION, "The payment provider refused the payment data. Check the details and try again.");
+        throw new ApiException(ErrorCode.INTERNAL, "Payment provider unavailable. Try again in a moment.");
     }
 
     @Override
@@ -83,7 +122,18 @@ public class MercadoPagoGateway implements PaymentGateway {
 
     @Override
     public Optional<Payment> fetch(String paymentId) {
-        if (paymentId == null || !paymentId.matches("\\d{1,24}")) return Optional.empty();
+        if (paymentId == null || paymentId.isBlank()) return Optional.empty();
+        if (paymentId.startsWith("ORD")) {
+            HttpRequest req = request("/v1/orders/" + paymentId).GET().build();
+            HttpResponse<String> res = send(req);
+            if (res.statusCode() == 404) return Optional.empty();
+            if (res.statusCode() / 100 != 2) {
+                log.error("[donation] Mercado Pago GET /v1/orders/{} HTTP {}: {}", paymentId, res.statusCode(), abbreviate(res.body()));
+                throw new ApiException(ErrorCode.INTERNAL, "Payment provider unavailable. Try again in a moment.");
+            }
+            return Optional.of(parseOrder(res.body(), null));
+        }
+        if (!paymentId.matches("\\d{1,24}")) return Optional.empty();
         HttpRequest req = request("/v1/payments/" + paymentId).GET().build();
         HttpResponse<String> res = send(req);
         if (res.statusCode() == 404) return Optional.empty();
@@ -92,6 +142,45 @@ public class MercadoPagoGateway implements PaymentGateway {
             throw new ApiException(ErrorCode.INTERNAL, "Payment provider unavailable. Try again in a moment.");
         }
         return Optional.of(parse(res.body()));
+    }
+
+    Payment parseOrder(String json, Charge charge) {
+        try {
+            JsonNode n = mapper.readTree(json);
+            String orderId = text(n, "id");
+            JsonNode pay = n.path("transactions").path("payments").path(0);
+            String status = text(n, "status");
+            if ("action_required".equals(status)) status = "pending";
+            if ("processed".equals(status) || "paid".equals(status)) status = "approved";
+            String statusDetail = text(n, "status_detail");
+
+            Payment.PixData pix = null;
+            JsonNode pm = pay.path("payment_method");
+            if (pm.hasNonNull("qr_code")) {
+                String b64 = text(pm, "qr_code_base64");
+                pix = new Payment.PixData(
+                        text(pm, "qr_code"),
+                        b64 == null ? null : (b64.startsWith("data:") ? b64 : "data:image/png;base64," + b64),
+                        text(pm, "ticket_url"),
+                        instant(text(pay, "date_of_expiration")));
+            }
+            Map<String, String> meta = charge != null ? charge.metadata() : Map.of();
+            return new Payment(
+                    orderId,
+                    status,
+                    statusDetail,
+                    "pix",
+                    n.hasNonNull("total_amount") ? new BigDecimal(n.get("total_amount").asText()) : BigDecimal.ZERO,
+                    text(n, "currency") != null ? text(n, "currency") : "BRL",
+                    text(n, "external_reference"),
+                    instant(text(n, "last_updated_date")),
+                    false,
+                    meta,
+                    pix);
+        } catch (Exception e) {
+            log.error("[donation] erro ao parsear order: {}", e.getMessage());
+            throw new ApiException(ErrorCode.INTERNAL, "Unexpected answer from the payment provider.");
+        }
     }
 
     // ------------------------------------------------------------------ helpers

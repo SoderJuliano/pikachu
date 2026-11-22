@@ -69,7 +69,7 @@ public class JdbcDonationStore implements DonationStore {
             if (schemaReady) return;
             jdbc.execute("""
                     CREATE TABLE IF NOT EXISTS %s (
-                      payment_id  VARCHAR(32)   NOT NULL PRIMARY KEY COMMENT 'id do pagamento no Mercado Pago',
+                      payment_id  VARCHAR(64)   NOT NULL PRIMARY KEY COMMENT 'id do pagamento no Mercado Pago',
                       account_id  INT UNSIGNED  NOT NULL COMMENT 'acore_auth.account.id',
                       username    VARCHAR(32)   NULL,
                       email       VARCHAR(255)  NULL,

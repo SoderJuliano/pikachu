@@ -138,7 +138,7 @@ public class DonationService {
     // ------------------------------------------------------------------ consulta (o site faz polling)
 
     public PaymentView status(AccountRow account, String paymentId) {
-        if (blank(paymentId) || !paymentId.matches("\\d{1,24}")) throw new ApiException(ErrorCode.NOT_FOUND, "Payment not found.");
+        if (blank(paymentId) || !paymentId.matches("[A-Za-z0-9_-]{1,64}")) throw new ApiException(ErrorCode.NOT_FOUND, "Payment not found.");
         Optional<Donation> recorded = store.findByPaymentId(paymentId);
         if (recorded.isPresent()) {
             Donation d = recorded.get();
@@ -173,11 +173,11 @@ public class DonationService {
         } else {
             log.warn("[donation] DONATION_MP_WEBHOOK_SECRET ausente: webhook aceito sem validar assinatura (o pagamento ainda e relido no Mercado Pago)");
         }
-        if (type != null && !type.equals("payment")) {
+        if (type != null && !type.equals("payment") && !type.equals("order")) {
             log.info("[donation] webhook tipo '{}' ignorado", safe(type));
             return WebhookOutcome.IGNORED;
         }
-        if (blank(dataId) || !dataId.matches("\\d{1,24}")) return WebhookOutcome.IGNORED;
+        if (blank(dataId) || !dataId.matches("[A-Za-z0-9_-]{1,64}")) return WebhookOutcome.IGNORED;
         return confirm(dataId);
     }
 
