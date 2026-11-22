@@ -46,3 +46,26 @@ sessões do launcher. Os outros tipos de evento só são contados no log e conti
 `WOWLK_DB_PASSWORD`, opcional `WOWLK_QUEUE_PRIVATE_KEY_PATH` (fila cifrada do site).
 O usuário do banco só tem SELECT/INSERT e UPDATE de `salt`/`verifier` em `acore_auth.account`, SELECT em `account_banned`/`account_access`
 e tudo em `wowlk_site` (sessões e histórico da fila, criado sozinho).
+
+## Módulo donation — doações do WoW Classic Plus LK (Mercado Pago)
+
+Pacote `com.mcp.pikachu.donation` (ports & adapters: `port/PaymentGateway`, `port/DonationStore`).
+Brasil paga com **Pix** (QR Code), outros países com **cartão** (tokenizado no navegador pelo
+MercadoPago.js — o número do cartão nunca chega ao Pikachu).
+
+**Rotas** (`/donation/v1`): `GET /config` (public key, limites), `POST /payments/pix`, `POST /payments/card`,
+`GET /payments/{id}` (o site consulta até `recorded=true`), `GET /me` (selo de apoiador) — todas com o
+Bearer do login do site; `POST /webhooks/mercadopago` (pública, chamada pelo Mercado Pago);
+`POST /dev/simulate-webhook/{id}` só com `donation.dev-tools: true`.
+
+**Regra:** só o webhook registra a doação. Ele valida o `x-signature` (HMAC com a assinatura secreta do
+painel), relê o pagamento na API do Mercado Pago e só grava se estiver `approved`. Documento em
+MongoDB, banco `dev-wowlk`, collection `devwowlk`, `_id` = id do pagamento (reentrega não duplica):
+`paymentId, accountId (id da conta no jogo), username, email, amount, currency, method, paidAt, recordedAt, liveMode`.
+
+**Segredos:** `DONATION_MP_ACCESS_TOKEN`, `DONATION_MP_PUBLIC_KEY`, `DONATION_MP_WEBHOOK_SECRET`, `DONATION_MONGO_URI`
+(secrets.txt ou variáveis de ambiente). **Webhook no painel:** Suas integrações > app > Webhooks >
+`https://<host-publico>/donation/v1/webhooks/mercadopago`, evento "Pagamentos".
+
+**Teste local:** `--spring.profiles.active=local` (credenciais de teste, comprador de teste, dev-tools) ou
+`local,mock` (sem rede e sem Mongo; Pix aprovado pela rota de simulação, cartão "APRO" aprova / "OTHE" recusa).

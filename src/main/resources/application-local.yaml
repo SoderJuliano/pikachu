@@ -1,0 +1,9 @@
+# Teste em localhost com as credenciais de TESTE do Mercado Pago:
+#   --spring.profiles.active=local
+# O Mercado Pago nao consegue chamar http://localhost: para o webhook real chegar, exponha a porta
+# 5300 (ngrok/cloudflared) e cadastre https://<tunel>/donation/v1/webhooks/mercadopago no painel.
+# Sem tunel, use POST /donation/v1/dev/simulate-webhook/{id} (dev-tools abaixo).
+donation:
+  dev-tools: true
+  # Comprador de teste (o sandbox recusa pagador que nao seja usuario de teste)
+  test-payer-email: test_user_8459601902567926525@testuser.com

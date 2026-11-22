@@ -1,0 +1,8 @@
+# Fluxo inteiro sem rede e sem Mongo (pagamentos falsos, doacoes em memoria):
+#   --spring.profiles.active=local,mock
+# Pix: aprove com POST /donation/v1/dev/simulate-webhook/{id} (ou o botao "Simulate payment" do site em dev).
+# Cartao: titular "APRO" aprova, "OTHE" recusa.
+donation:
+  gateway: mock
+  store: memory
+  dev-tools: true
