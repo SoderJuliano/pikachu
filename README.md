@@ -59,13 +59,13 @@ Bearer do login do site; `POST /webhooks/mercadopago` (pública, chamada pelo Me
 `POST /dev/simulate-webhook/{id}` só com `donation.dev-tools: true`.
 
 **Regra:** só o webhook registra a doação. Ele valida o `x-signature` (HMAC com a assinatura secreta do
-painel), relê o pagamento na API do Mercado Pago e só grava se estiver `approved`. Documento em
-MongoDB, banco `dev-wowlk`, collection `devwowlk`, `_id` = id do pagamento (reentrega não duplica):
-`paymentId, accountId (id da conta no jogo), username, email, amount, currency, method, paidAt, recordedAt, liveMode`.
+painel), relê o pagamento na API do Mercado Pago e só grava se estiver `approved`. Linha em
+`wowlk_site.donation` (MariaDB, criada sozinha), chave `payment_id` (reentrega não duplica):
+`payment_id, account_id (id da conta no jogo), username, email, amount, currency, method, paid_at, recorded_at (UTC), live_mode`.
 
-**Segredos:** `DONATION_MP_ACCESS_TOKEN`, `DONATION_MP_PUBLIC_KEY`, `DONATION_MP_WEBHOOK_SECRET`, `DONATION_MONGO_URI`
+**Segredos:** `DONATION_MP_ACCESS_TOKEN`, `DONATION_MP_PUBLIC_KEY`, `DONATION_MP_WEBHOOK_SECRET`
 (secrets.txt ou variáveis de ambiente). **Webhook no painel:** Suas integrações > app > Webhooks >
 `https://<host-publico>/donation/v1/webhooks/mercadopago`, evento "Pagamentos".
 
 **Teste local:** `--spring.profiles.active=local` (credenciais de teste, comprador de teste, dev-tools) ou
-`local,mock` (sem rede e sem Mongo; Pix aprovado pela rota de simulação, cartão "APRO" aprova / "OTHE" recusa).
+`local,mock` (sem rede e sem banco; Pix aprovado pela rota de simulação, cartão "APRO" aprova / "OTHE" recusa).

@@ -4,14 +4,10 @@ import com.mcp.pikachu.donation.application.DonationService;
 import com.mcp.pikachu.donation.infra.InMemoryDonationStore;
 import com.mcp.pikachu.donation.infra.MercadoPagoGateway;
 import com.mcp.pikachu.donation.infra.MockPaymentGateway;
-import com.mcp.pikachu.donation.infra.MongoDonationStore;
+import com.mcp.pikachu.donation.infra.JdbcDonationStore;
 import com.mcp.pikachu.donation.port.DonationStore;
 import com.mcp.pikachu.donation.port.PaymentGateway;
 import com.mcp.pikachu.wowlk.infra.WowlkRepository;
-import com.mongodb.ConnectionString;
-import com.mongodb.MongoClientSettings;
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -19,13 +15,13 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import javax.sql.DataSource;
 import java.time.Clock;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Montagem do modulo de doacoes (ports & adapters): escolhe gateway (Mercado Pago ou mock) e store
- * (Mongo ou memoria) pelo application.yaml. Mongo fora do ar nao derruba a subida: o driver conecta
- * sob demanda e o erro aparece na rota/no webhook.
+ * (MariaDB wowlk_site ou memoria) pelo application.yaml. Usa o mesmo pool do modulo wowlk; a tabela e
+ * criada no primeiro uso, entao banco fora do ar nao derruba a subida.
  */
 @Slf4j
 @Configuration
@@ -45,28 +41,14 @@ public class DonationConfig implements WebMvcConfigurer {
         return new MercadoPagoGateway(props.mercadoPagoBaseUrl(), DonationSecrets.accessToken(), props.notificationUrl(), props.statementDescriptor());
     }
 
-    @Bean(destroyMethod = "close")
-    public MongoClient donationMongoClient(DonationProperties props) {
-        String uri = DonationSecrets.mongoUri();
-        if (uri == null) {
-            uri = "mongodb://localhost:27017";
-            if (!props.memoryStore()) log.warn("[donation] DONATION_MONGO_URI ausente — usando {}", uri);
-        }
-        return MongoClients.create(MongoClientSettings.builder()
-                .applyConnectionString(new ConnectionString(uri))
-                .applyToClusterSettings(c -> c.serverSelectionTimeout(5, TimeUnit.SECONDS))
-                .applyToSocketSettings(s -> s.connectTimeout(5, TimeUnit.SECONDS))
-                .build());
-    }
-
     @Bean
-    public DonationStore donationStore(DonationProperties props, MongoClient donationMongoClient) {
+    public DonationStore donationStore(DonationProperties props, DataSource wowlkDataSource) {
         if (props.memoryStore()) {
             log.warn("[donation] store em MEMORIA: doacoes somem ao reiniciar (so para testes locais)");
             return new InMemoryDonationStore();
         }
-        log.info("[donation] doacoes no Mongo: banco '{}', collection '{}'", props.mongoDatabase(), props.mongoCollection());
-        return new MongoDonationStore(donationMongoClient.getDatabase(props.mongoDatabase()).getCollection(props.mongoCollection()));
+        log.info("[donation] doacoes no MariaDB: wowlk_site.donation");
+        return new JdbcDonationStore(wowlkDataSource);
     }
 
     @Bean

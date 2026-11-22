@@ -50,18 +50,17 @@ wowlk:
 
 # Modulo de doacoes (pacote com.mcp.pikachu.donation) — Mercado Pago: Pix no Brasil, cartao fora.
 # Segredos NAO ficam aqui: DONATION_MP_ACCESS_TOKEN, DONATION_MP_PUBLIC_KEY,
-# DONATION_MP_WEBHOOK_SECRET e DONATION_MONGO_URI vem do secrets.txt (ou variaveis de ambiente).
+# e DONATION_MP_WEBHOOK_SECRET vem do secrets.txt (ou variaveis de ambiente).
+# Doacoes confirmadas: MariaDB, wowlk_site.donation (mesmo banco/usuario do modulo wowlk).
 # Webhook para cadastrar no painel do Mercado Pago: https://<host-publico>/donation/v1/webhooks/mercadopago
 # Perfis de teste: application-local.yaml (Mercado Pago de teste) e application-mock.yaml (sem rede).
 donation:
   enabled: true
   gateway: mercadopago          # mercadopago | mock
-  store: mongo                  # mongo | memory
+  store: jdbc                   # jdbc (MariaDB wowlk_site) | memory
   dev-tools: false              # NUNCA true em producao (libera a simulacao de webhook)
   notification-url: ""          # vazio = usa a URL configurada no painel de Webhooks do Mercado Pago
   test-payer-email: ""          # so em teste: e-mail do comprador de teste
-  mongo-database: dev-wowlk
-  mongo-collection: devwowlk
   currency: BRL
   min-amount: 5
   max-amount: 1000

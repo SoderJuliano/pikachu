@@ -28,7 +28,7 @@ import java.util.UUID;
  * Doacoes via Mercado Pago.
  * <p>
  * Regra central: <b>so o webhook registra a doacao</b>. Ele nunca confia no corpo da notificacao —
- * relê o pagamento direto na API do Mercado Pago pelo id e so grava em {@code devwowlk} se o status
+ * relê o pagamento direto na API do Mercado Pago pelo id e so grava em {@code wowlk_site.donation} se o status
  * for {@code approved}. O site so mostra "pagamento concluido" quando o registro existe.
  */
 @Slf4j

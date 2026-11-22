@@ -29,7 +29,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/donation/v1")
-@Tag(name = "Doacoes WoW Classic Plus LK", description = "Pix (Brasil) e cartao (outros paises) via Mercado Pago; webhook registra no Mongo")
+@Tag(name = "Doacoes WoW Classic Plus LK", description = "Pix (Brasil) e cartao (outros paises) via Mercado Pago; webhook registra no MariaDB (wowlk_site.donation)")
 public class DonationController {
 
     private static final long MAX_BODY = 8 * 1024;

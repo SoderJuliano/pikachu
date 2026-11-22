@@ -39,7 +39,7 @@ class DonationServiceTest {
 
     static DonationProperties props(String testPayer, BigDecimal fixed) {
         return new DonationProperties(true, "mock", "memory", true, "https://api.mercadopago.com", "", testPayer,
-                "dev-wowlk", "devwowlk", "BRL", new BigDecimal("5"), new BigDecimal("1000"), fixed, new BigDecimal("5.04"),
+                "BRL", new BigDecimal("5"), new BigDecimal("1000"), fixed, new BigDecimal("5.04"),
                 30, "desc", "CLASSICPLUS");
     }
 

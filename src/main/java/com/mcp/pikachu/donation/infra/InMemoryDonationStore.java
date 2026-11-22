@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Store em memoria para testes locais sem Mongo ({@code donation.store: memory}). Some ao reiniciar. */
+/** Store em memoria para testes locais sem banco ({@code donation.store: memory}). Some ao reiniciar. */
 public class InMemoryDonationStore implements DonationStore {
 
     private final ConcurrentHashMap<String, Donation> byPayment = new ConcurrentHashMap<>();

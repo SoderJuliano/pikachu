@@ -5,7 +5,7 @@ import com.mcp.pikachu.donation.domain.Donation;
 import java.util.List;
 import java.util.Optional;
 
-/** Porta de saida para onde as doacoes confirmadas ficam (Mongo: banco dev-wowlk, collection devwowlk). */
+/** Porta de saida para onde as doacoes confirmadas ficam (MariaDB: wowlk_site.donation). */
 public interface DonationStore {
 
     /** Grava se ainda nao existe. Retorna false se o pagamento ja estava registrado (idempotente). */

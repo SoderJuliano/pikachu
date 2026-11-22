@@ -7,11 +7,11 @@ import java.math.BigDecimal;
 
 /**
  * Configuracao nao-secreta do modulo de doacoes (application.yaml, prefixo {@code donation}).
- * Token do Mercado Pago, segredo do webhook e URI do Mongo ficam no secrets.txt (ver {@link DonationSecrets}).
+ * Token do Mercado Pago e segredo do webhook ficam no secrets.txt (ver {@link DonationSecrets}).
  *
  * @param gateway         {@code mercadopago} (API real; credenciais de teste ou producao) ou {@code mock}
  *                        (tudo em memoria, sem rede: pagamentos falsos aprovados pela rota de dev).
- * @param store           {@code mongo} ou {@code memory} (testes locais sem Mongo).
+ * @param store           {@code jdbc} (MariaDB, wowlk_site.donation) ou {@code memory} (testes locais sem banco).
  * @param devTools        libera {@code POST /donation/v1/dev/simulate-webhook/{id}}. NUNCA ligar em producao.
  * @param notificationUrl URL publica HTTPS do webhook, mandada em cada pagamento. Vazia = vale a URL
  *                        configurada no painel do Mercado Pago (Suas integracoes > Webhooks).
@@ -25,13 +25,11 @@ import java.math.BigDecimal;
 public record DonationProperties(
         @DefaultValue("true") boolean enabled,
         @DefaultValue("mercadopago") String gateway,
-        @DefaultValue("mongo") String store,
+        @DefaultValue("jdbc") String store,
         @DefaultValue("false") boolean devTools,
         @DefaultValue("https://api.mercadopago.com") String mercadoPagoBaseUrl,
         @DefaultValue("") String notificationUrl,
         @DefaultValue("") String testPayerEmail,
-        @DefaultValue("dev-wowlk") String mongoDatabase,
-        @DefaultValue("devwowlk") String mongoCollection,
         @DefaultValue("BRL") String currency,
         @DefaultValue("5") BigDecimal minAmount,
         @DefaultValue("1000") BigDecimal maxAmount,

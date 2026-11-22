@@ -8,7 +8,6 @@ import com.mcp.pikachu.infra.SecretManager;
  *   <li>{@code DONATION_MP_ACCESS_TOKEN} — Access Token do Mercado Pago (APP_USR-... da conta vendedora)</li>
  *   <li>{@code DONATION_MP_PUBLIC_KEY} — Public Key (vai para o site tokenizar o cartao; nao e segredo, mas fica junto)</li>
  *   <li>{@code DONATION_MP_WEBHOOK_SECRET} — "Assinatura secreta" do painel de Webhooks (valida o x-signature)</li>
- *   <li>{@code DONATION_MONGO_URI} — ex.: mongodb://usuario:senha@host:27017/?authSource=admin</li>
  * </ul>
  */
 public final class DonationSecrets {
@@ -26,10 +25,6 @@ public final class DonationSecrets {
 
     public static String webhookSecret() {
         return get("DONATION_MP_WEBHOOK_SECRET");
-    }
-
-    public static String mongoUri() {
-        return get("DONATION_MONGO_URI");
     }
 
     private static String get(String key) {
