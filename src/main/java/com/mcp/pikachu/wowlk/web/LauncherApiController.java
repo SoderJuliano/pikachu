@@ -1,10 +1,12 @@
 package com.mcp.pikachu.wowlk.web;
 
+import com.mcp.pikachu.donation.application.DonationService;
 import com.mcp.pikachu.wowlk.application.AccountMailer;
 import com.mcp.pikachu.wowlk.application.AccountRegistrationService;
 import com.mcp.pikachu.wowlk.application.AuthService;
 import com.mcp.pikachu.wowlk.application.RealmStatusService;
 import com.mcp.pikachu.wowlk.config.WowlkProperties;
+import com.mcp.pikachu.wowlk.domain.AccountRow;
 import com.mcp.pikachu.wowlk.domain.ApiException;
 import com.mcp.pikachu.wowlk.domain.ErrorCode;
 import com.mcp.pikachu.wowlk.domain.NewAccount;
@@ -56,14 +58,16 @@ public class LauncherApiController {
     private final AccountMailer mailer;
     private final WowlkProperties props;
     private final RealmStatusService realmStatus;
+    private final DonationService donations;
 
     public LauncherApiController(AuthService auth, AccountRegistrationService registration, AccountMailer mailer, WowlkProperties props,
-                                 RealmStatusService realmStatus) {
+                                 RealmStatusService realmStatus, DonationService donations) {
         this.auth = auth;
         this.registration = registration;
         this.mailer = mailer;
         this.props = props;
         this.realmStatus = realmStatus;
+        this.donations = donations;
     }
 
     @Operation(summary = "Estado da API do launcher")
@@ -144,6 +148,24 @@ public class LauncherApiController {
         Path file = Path.of(props.manifestDir(), client + ".json");
         if (!Files.isRegularFile(file))
             throw new ApiException(ErrorCode.NOT_FOUND, "No update manifest published for this client yet.");
+        return Files.readString(file);
+    }
+
+    @Operation(summary = "Manifesto de conteudos exclusivos para apoiadores/devs (valida conta na base wowlk_site.donation)")
+    @GetMapping(value = "/manifest/{client}/supporter", produces = "application/json")
+    public String supporterManifest(@PathVariable String client, HttpServletRequest req) throws IOException {
+        guard(req, false);
+        AccountRow account = auth.authenticate(bearer(req));
+        if (!donations.supporter(account).supporter()) {
+            throw new ApiException(ErrorCode.ACCOUNT_LOCKED, "Supporter status required to access early-access content.");
+        }
+        if (!client.matches("[a-z0-9]{1,16}") || "launcher".equals(client)) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "Unknown client.");
+        }
+        Path file = Path.of(props.manifestDir(), "dev", client + "-dev.json");
+        if (!Files.isRegularFile(file)) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "No supporter early-access manifest published for this client yet.");
+        }
         return Files.readString(file);
     }
 
