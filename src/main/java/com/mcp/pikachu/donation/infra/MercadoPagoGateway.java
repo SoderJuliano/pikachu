@@ -106,18 +106,63 @@ public class MercadoPagoGateway implements PaymentGateway {
 
     @Override
     public Payment createCard(Charge charge, Card card) {
-        ObjectNode body = base(charge);
-        body.put("token", card.token());
-        body.put("payment_method_id", card.paymentMethodId());
-        body.put("installments", Math.max(1, card.installments()));
-        if (card.issuerId() != null && !card.issuerId().isBlank()) body.put("issuer_id", card.issuerId());
-        if (statementDescriptor != null && !statementDescriptor.isBlank()) body.put("statement_descriptor", statementDescriptor);
+        try {
+            return createOrderCard(charge, card);
+        } catch (ApiException e) {
+            log.warn("[donation] criacao de cartao via /v1/orders falhou ({}), tentando /v1/payments", e.getMessage());
+            ObjectNode body = base(charge);
+            body.put("token", card.token());
+            body.put("payment_method_id", card.paymentMethodId());
+            body.put("installments", Math.max(1, card.installments()));
+            if (card.issuerId() != null && !card.issuerId().isBlank()) body.put("issuer_id", card.issuerId());
+            if (statementDescriptor != null && !statementDescriptor.isBlank()) body.put("statement_descriptor", statementDescriptor);
+            if (card.identificationNumber() != null && !card.identificationNumber().isBlank()) {
+                ObjectNode id = ((ObjectNode) body.get("payer")).putObject("identification");
+                id.put("type", card.identificationType() == null || card.identificationType().isBlank() ? "CPF" : card.identificationType());
+                id.put("number", card.identificationNumber());
+            }
+            return create(body, charge.idempotencyKey());
+        }
+    }
+
+    private Payment createOrderCard(Charge charge, Card card) {
+        ObjectNode body = mapper.createObjectNode();
+        body.put("type", "online");
+        body.put("processing_mode", "automatic");
+        body.put("total_amount", charge.amount().setScale(2, java.math.RoundingMode.HALF_UP).toString());
+        body.put("external_reference", charge.externalReference());
+        body.put("description", charge.description());
+        if (notificationUrl != null) body.put("notification_url", notificationUrl);
+        ObjectNode payer = body.putObject("payer");
+        payer.put("email", charge.payerEmail());
         if (card.identificationNumber() != null && !card.identificationNumber().isBlank()) {
-            ObjectNode id = ((ObjectNode) body.get("payer")).putObject("identification");
+            ObjectNode id = payer.putObject("identification");
             id.put("type", card.identificationType() == null || card.identificationType().isBlank() ? "CPF" : card.identificationType());
             id.put("number", card.identificationNumber());
         }
-        return create(body, charge.idempotencyKey());
+
+        ObjectNode tx = body.putObject("transactions");
+        var payments = tx.putArray("payments");
+        ObjectNode p0 = payments.addObject();
+        p0.put("amount", charge.amount().setScale(2, java.math.RoundingMode.HALF_UP).toString());
+        ObjectNode pm = p0.putObject("payment_method");
+        pm.put("id", card.paymentMethodId());
+        pm.put("type", "credit_card");
+        pm.put("token", card.token());
+        pm.put("installments", Math.max(1, card.installments()));
+        if (card.issuerId() != null && !card.issuerId().isBlank()) pm.put("issuer_id", card.issuerId());
+
+        HttpRequest req = request("/v1/orders")
+                .header("Content-Type", "application/json")
+                .header("X-Idempotency-Key", charge.idempotencyKey())
+                .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+                .build();
+        HttpResponse<String> res = send(req);
+        if (res.statusCode() / 100 == 2) return parseOrder(res.body(), charge);
+        log.warn("[donation] Mercado Pago recusou criacao da order cartao: HTTP {} {}", res.statusCode(), abbreviate(res.body()));
+        if (res.statusCode() == 400 || res.statusCode() == 422)
+            throw new ApiException(ErrorCode.VALIDATION, "The payment provider refused the payment data. Check the details and try again.");
+        throw new ApiException(ErrorCode.INTERNAL, "Payment provider unavailable. Try again in a moment.");
     }
 
     @Override
@@ -164,12 +209,16 @@ public class MercadoPagoGateway implements PaymentGateway {
                         text(pm, "ticket_url"),
                         instant(text(pay, "date_of_expiration")));
             }
+            String method = "pix";
+            if (pm.hasNonNull("type") && "credit_card".equals(pm.get("type").asText())) {
+                method = "card";
+            }
             Map<String, String> meta = charge != null ? charge.metadata() : Map.of();
             return new Payment(
                     orderId,
                     status,
                     statusDetail,
-                    "pix",
+                    method,
                     n.hasNonNull("total_amount") ? new BigDecimal(n.get("total_amount").asText()) : BigDecimal.ZERO,
                     text(n, "currency") != null ? text(n, "currency") : "BRL",
                     text(n, "external_reference"),
