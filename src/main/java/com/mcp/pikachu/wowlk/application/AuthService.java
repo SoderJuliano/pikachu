@@ -125,6 +125,17 @@ public class AuthService {
                 .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED, "Please sign in again."));
     }
 
+    /** Cria uma sessao web independente a partir do Bearer do launcher (nao invalida a sessao do launcher). */
+    public TokenResponse createWebSession(String accessToken, String ip) {
+        AccountRow account = authenticate(accessToken);
+        assertCanPlay(account);
+        Tokens t = newTokens();
+        repo.createSession(account.id(), t.accessHash, props.accessTokenTtlSeconds(), t.refreshHash, props.refreshTokenTtlSeconds(),
+                "web-sso", null, ip);
+        log.info("[wowlk] web-handoff OK: {} (id {})", account.username(), account.id());
+        return response(account, t);
+    }
+
     public void checkRegisterRate(String ip) {
         long wait = registerPerIp.hit("ip:" + ip);
         if (wait > 0) throw new ApiException(ErrorCode.RATE_LIMITED, "Too many registrations. Please try again later.", wait);

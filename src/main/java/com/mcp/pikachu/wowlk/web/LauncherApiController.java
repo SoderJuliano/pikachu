@@ -104,6 +104,13 @@ public class LauncherApiController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Cria uma sessao web independente a partir do Bearer do launcher (SSO)")
+    @PostMapping("/auth/web-handoff")
+    public AuthService.TokenResponse webHandoff(HttpServletRequest req) {
+        guard(req, false);
+        return auth.createWebSession(bearer(req), clientIp(req));
+    }
+
     @Operation(summary = "Cadastro direto (cria a conta ativa na hora). O site usa a fila da Abra API.")
     @PostMapping("/auth/register")
     public ResponseEntity<RegisterResponse> register(@RequestBody(required = false) RegisterRequest body, HttpServletRequest req) {
@@ -129,8 +136,10 @@ public class LauncherApiController {
     @GetMapping(value = "/manifest/{client}", produces = "application/json")
     public String manifest(@PathVariable String client, HttpServletRequest req) throws IOException {
         guard(req, false);
-        auth.authenticate(bearer(req));
-        // O nome vira caminho de arquivo: so aceita o formato dos ids de cliente (wow32, wow64).
+        if (!"launcher".equals(client)) {
+            auth.authenticate(bearer(req));
+        }
+        // O nome vira caminho de arquivo: so aceita o formato dos ids de cliente (wow32, wow64, launcher).
         if (!client.matches("[a-z0-9]{1,16}")) throw new ApiException(ErrorCode.NOT_FOUND, "Unknown client.");
         Path file = Path.of(props.manifestDir(), client + ".json");
         if (!Files.isRegularFile(file))
