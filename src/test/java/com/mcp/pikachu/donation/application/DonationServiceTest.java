@@ -77,12 +77,11 @@ class DonationServiceTest {
         assertFalse(service.status(ARTHAS, pix.id()).recorded());
 
         gateway.approve(pix.id());
-        assertFalse(service.status(ARTHAS, pix.id()).recorded(), "aprovado no gateway, mas sem webhook ainda nao conta");
-
-        assertEquals(WebhookOutcome.RECORDED, service.handleWebhook(pix.id(), "payment", signed(pix.id()), "req-1"));
         var done = service.status(ARTHAS, pix.id());
-        assertTrue(done.recorded());
+        assertTrue(done.recorded(), "ao aprovar no gateway, polling de status auto-registra a doacao");
         assertEquals("approved", done.status());
+
+        assertEquals(WebhookOutcome.ALREADY_RECORDED, service.handleWebhook(pix.id(), "payment", signed(pix.id()), "req-1"));
 
         Donation d = store.findByPaymentId(pix.id()).orElseThrow();
         assertEquals(7, d.accountId());

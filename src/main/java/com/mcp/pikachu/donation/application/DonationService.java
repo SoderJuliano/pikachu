@@ -149,6 +149,15 @@ public class DonationService {
         Payment p = gateway.fetch(paymentId)
                 .filter(x -> Long.valueOf(account.id()).equals(x.accountId()))
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Payment not found."));
+        if (p.approved()) {
+            confirm(paymentId);
+            Optional<Donation> newlyRecorded = store.findByPaymentId(paymentId);
+            if (newlyRecorded.isPresent()) {
+                Donation d = newlyRecorded.get();
+                return new PaymentView(d.paymentId(), Payment.APPROVED, "accredited", d.method(), d.amount(), d.currency(),
+                        true, d.paidAt(), d.recordedAt(), null);
+            }
+        }
         return view(p, null);
     }
 
