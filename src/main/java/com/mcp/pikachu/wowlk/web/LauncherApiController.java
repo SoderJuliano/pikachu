@@ -10,6 +10,7 @@ import com.mcp.pikachu.wowlk.domain.AccountRow;
 import com.mcp.pikachu.wowlk.domain.ApiException;
 import com.mcp.pikachu.wowlk.domain.ErrorCode;
 import com.mcp.pikachu.wowlk.domain.NewAccount;
+import com.mcp.pikachu.wowlk.infra.WowlkRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,21 +54,26 @@ public class LauncherApiController {
     public record RegisterResponse(Map<String, Object> user, String status) {
     }
 
+    public record LanguageRequest(String language) {
+    }
+
     private final AuthService auth;
     private final AccountRegistrationService registration;
     private final AccountMailer mailer;
     private final WowlkProperties props;
     private final RealmStatusService realmStatus;
     private final DonationService donations;
+    private final WowlkRepository repo;
 
     public LauncherApiController(AuthService auth, AccountRegistrationService registration, AccountMailer mailer, WowlkProperties props,
-                                 RealmStatusService realmStatus, DonationService donations) {
+                                 RealmStatusService realmStatus, DonationService donations, WowlkRepository repo) {
         this.auth = auth;
         this.registration = registration;
         this.mailer = mailer;
         this.props = props;
         this.realmStatus = realmStatus;
         this.donations = donations;
+        this.repo = repo;
     }
 
     @Operation(summary = "Estado da API do launcher")
@@ -167,6 +173,45 @@ public class LauncherApiController {
             throw new ApiException(ErrorCode.NOT_FOUND, "No supporter early-access manifest published for this client yet.");
         }
         return Files.readString(file);
+    }
+
+    @Operation(summary = "Manifesto de pacote de idioma do cliente (publico)")
+    @GetMapping(value = "/manifest/{client}/lang/{lang}", produces = "application/json")
+    public String languageManifest(@PathVariable String client, @PathVariable String lang, HttpServletRequest req) throws IOException {
+        guard(req, false);
+        if (!client.matches("[a-z0-9]{1,16}") || "launcher".equals(client)) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "Unknown client.");
+        }
+        if (!lang.matches("[a-z]{2}[A-Z]{2}")) {
+            throw new ApiException(ErrorCode.VALIDATION, "Invalid language code.");
+        }
+        Path file = Path.of(props.manifestDir(), "lang", client + "-" + lang + ".json");
+        if (!Files.isRegularFile(file)) {
+            throw new ApiException(ErrorCode.NOT_FOUND, "No language pack manifest published for this language yet.");
+        }
+        return Files.readString(file);
+    }
+
+    @Operation(summary = "Consulta o idioma configurado na conta (enUS ou ptBR)")
+    @GetMapping("/account/language")
+    public Map<String, Object> getAccountLanguage(HttpServletRequest req) {
+        guard(req, false);
+        AccountRow account = auth.authenticate(bearer(req));
+        return Map.of("language", repo.findAccountLanguage(account.id()));
+    }
+
+    @Operation(summary = "Salva a preferencia de idioma da conta (enUS ou ptBR) em acore_auth.account_idioma")
+    @PutMapping("/account/language")
+    public Map<String, Object> setAccountLanguage(@RequestBody(required = false) LanguageRequest body, HttpServletRequest req) {
+        guard(req, true);
+        AccountRow account = auth.authenticate(bearer(req));
+        String lang = body == null || body.language() == null ? "" : body.language().trim();
+        if (!"enUS".equals(lang) && !"ptBR".equals(lang)) {
+            throw new ApiException(ErrorCode.VALIDATION, "Language must be enUS or ptBR.");
+        }
+        repo.saveAccountLanguage(account.id(), lang);
+        log.info("[wowlk] idioma da conta {} (id {}) alterado para {}", account.username(), account.id(), lang);
+        return Map.of("language", lang);
     }
 
     // ------------------------------------------------------------------ helpers

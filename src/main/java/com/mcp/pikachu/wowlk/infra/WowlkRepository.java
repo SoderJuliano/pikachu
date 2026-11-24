@@ -142,6 +142,18 @@ public class WowlkRepository {
         jdbc.update("UPDATE acore_auth.account SET salt = ?, verifier = ? WHERE id = ?", salt, verifier, accountId);
     }
 
+    public String findAccountLanguage(long accountId) {
+        return jdbc.query("SELECT idioma FROM acore_auth.account_idioma WHERE account_id = ?",
+                        (rs, i) -> rs.getString(1), accountId)
+                .stream().findFirst().orElse("enUS");
+    }
+
+    public void saveAccountLanguage(long accountId, String idioma) {
+        jdbc.update("""
+                INSERT INTO acore_auth.account_idioma (account_id, idioma) VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE idioma = VALUES(idioma)""", accountId, idioma);
+    }
+
     /** Contas de gente: sem os bots, as contas de teste AGENTE* e a linha ADM, que so reserva o nome. */
     private static final String HUMANAS = "username NOT LIKE 'RNDBOT%' AND username NOT LIKE 'AGENTE%' AND username <> 'ADM'";
 
