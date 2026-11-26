@@ -7,11 +7,14 @@ import com.mcp.pikachu.donation.infra.MockPaymentGateway;
 import com.mcp.pikachu.donation.infra.JdbcDonationStore;
 import com.mcp.pikachu.donation.port.DonationStore;
 import com.mcp.pikachu.donation.port.PaymentGateway;
+import com.mcp.pikachu.wowlk.application.AccountMailer;
 import com.mcp.pikachu.wowlk.infra.WowlkRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -19,9 +22,10 @@ import javax.sql.DataSource;
 import java.time.Clock;
 
 /**
- * Montagem do modulo de doacoes (ports & adapters): escolhe gateway (Mercado Pago ou mock) e store
- * (MariaDB wowlk_site ou memoria) pelo application.yaml. Usa o mesmo pool do modulo wowlk; a tabela e
- * criada no primeiro uso, entao banco fora do ar nao derruba a subida.
+ * Montagem do modulo de doacoes (ports & adapters): escolhe gateway (Mercado Pago ou mock) e stores
+ * (MariaDB wowlk_site.donation e wowlk_site.wowsixtyfordev, ou memoria) pelo application.yaml.
+ * Usa o mesmo pool do modulo wowlk; as tabelas sao criadas no primeiro uso, entao banco fora do ar
+ * nao derruba a subida.
  */
 @Slf4j
 @Configuration
@@ -42,6 +46,7 @@ public class DonationConfig implements WebMvcConfigurer {
     }
 
     @Bean
+    @Primary
     public DonationStore donationStore(DonationProperties props, DataSource wowlkDataSource) {
         if (props.memoryStore()) {
             log.warn("[donation] store em MEMORIA: doacoes somem ao reiniciar (so para testes locais)");
@@ -51,10 +56,26 @@ public class DonationConfig implements WebMvcConfigurer {
         return new JdbcDonationStore(wowlkDataSource);
     }
 
+    @Bean("client64DonationStore")
+    public DonationStore client64DonationStore(DonationProperties props, DataSource wowlkDataSource) {
+        if (props.memoryStore()) {
+            log.warn("[donation] store 64-bit em MEMORIA (wowsixtyfordev): doacoes somem ao reiniciar");
+            return new InMemoryDonationStore();
+        }
+        log.info("[donation] doacoes 64-bit no MariaDB: wowlk_site.wowsixtyfordev");
+        return new JdbcDonationStore(wowlkDataSource, "wowsixtyfordev");
+    }
+
     @Bean
-    public DonationService donationService(PaymentGateway gateway, DonationStore store, WowlkRepository accounts, DonationProperties props) {
+    public DonationService donationService(PaymentGateway gateway,
+                                           DonationStore store,
+                                           @Qualifier("client64DonationStore") DonationStore client64Store,
+                                           WowlkRepository accounts,
+                                           AccountMailer mailer,
+                                           DonationProperties props) {
         if (props.devTools()) log.warn("[donation] dev-tools LIGADO: POST /donation/v1/dev/simulate-webhook/{id} aberto. Desligue em producao.");
-        return new DonationService(gateway, store, accounts, props, DonationSecrets.webhookSecret(), DonationSecrets.publicKey(), Clock.systemUTC());
+        return new DonationService(gateway, store, client64Store, accounts, mailer, props,
+                DonationSecrets.webhookSecret(), DonationSecrets.publicKey(), Clock.systemUTC());
     }
 
     /** O site chama de qualquer dominio; sem cookies (Bearer no cabecalho), igual ao launcher. */

@@ -91,6 +91,46 @@ public class DonationController {
         return donations.supporter(account(req));
     }
 
+    // ------------------------------------------------------------------ cliente 64-bit (wowlk_site.wowsixtyfordev)
+
+    @Operation(summary = "Configuracao publica para a doacao do cliente 64-bit (valor fixo R$ 99,90)")
+    @GetMapping("/client64/config")
+    public DonationService.PublicConfig client64Config() {
+        enabled();
+        return donations.publicConfigClient64();
+    }
+
+    @Operation(summary = "Cria uma cobranca Pix de R$ 99,90 para o cliente 64-bit")
+    @PostMapping("/client64/payments/pix")
+    public ResponseEntity<DonationService.PaymentView> client64Pix(HttpServletRequest req,
+                                                                   @RequestHeader(value = "X-Idempotency-Key", required = false) String idem) {
+        AccountRow account = account(req);
+        return ResponseEntity.status(HttpStatus.CREATED).body(donations.createClient64Pix(account, idem));
+    }
+
+    @Operation(summary = "Paga R$ 99,90 com cartao tokenizado para o cliente 64-bit")
+    @PostMapping("/client64/payments/card")
+    public ResponseEntity<DonationService.PaymentView> client64Card(@RequestBody(required = false) CardRequest body, HttpServletRequest req,
+                                                                    @RequestHeader(value = "X-Idempotency-Key", required = false) String idem) {
+        AccountRow account = account(req);
+        if (body == null) throw new ApiException(ErrorCode.VALIDATION, "Card data is incomplete.");
+        PaymentGateway.Card card = new PaymentGateway.Card(body.token(), body.payment_method_id(), body.issuer_id(), 1,
+                body.identification_type(), body.identification_number());
+        return ResponseEntity.status(HttpStatus.CREATED).body(donations.createClient64Card(account, card, idem));
+    }
+
+    @Operation(summary = "Status do pagamento do cliente 64-bit (polling ate recorded=true)")
+    @GetMapping("/client64/payments/{id}")
+    public DonationService.PaymentView client64Status(@PathVariable String id, HttpServletRequest req) {
+        return donations.statusClient64(account(req), id);
+    }
+
+    @Operation(summary = "Verifica se a conta logada ja contribuiu para o cliente 64-bit (wowsixtyfordev)")
+    @GetMapping("/client64/me")
+    public DonationService.SupporterView client64Me(HttpServletRequest req) {
+        return donations.client64Supporter(account(req));
+    }
+
     /**
      * URL para cadastrar no painel do Mercado Pago (Suas integracoes > Webhooks > evento "Pagamentos").
      * Sempre responde 200 rapido quando a notificacao e legitima (senao o Mercado Pago reenvia);

@@ -78,6 +78,24 @@ public class AccountMailer {
         return send(email, subject, body, "conflito");
     }
 
+    /** Agradecimento pela doacao do cliente 64-bit (wowlk_site.wowsixtyfordev). Texto puro sem barras para o path da Abra API. */
+    public boolean sendClient64DonationThanks(String email, String username, boolean pt) {
+        String who = (username == null || username.isBlank()) ? (pt ? "jogador" : "player") : username;
+        String subject = pt
+                ? "WoW Classic Plus LK - obrigado pela sua doacao!"
+                : "WoW Classic Plus LK - thank you for your donation!";
+        String body = pt
+                ? "Ola " + who + "!\n\nMuito obrigado pela sua doacao e por apoiar o desenvolvimento do cliente 64-bit do WoW Classic Plus LK!\n"
+                  + "Toda contribuicao e convertida em tokens para melhorar e acelerar o desenvolvimento.\n\n"
+                  + "Em algum momento futuro, novos recursos estarao disponiveis pelo launcher - fique de olho!\n"
+                  + "Esperamos que voce esteja aproveitando bastante o jogo.\n\nBom jogo!\nEquipe WoW Classic Plus LK"
+                : "Hello " + who + "!\n\nThank you so much for your donation and for supporting the WoW Classic Plus LK 64-bit client development!\n"
+                  + "Every contribution is converted into tokens to improve and speed up development.\n\n"
+                  + "In the future, new features will become available through the launcher - keep an eye out!\n"
+                  + "We hope you are enjoying the game.\n\nHave fun!\nThe WoW Classic Plus LK team";
+        return send(email, subject, body, "doacao 64-bit");
+    }
+
     private boolean send(String email, String subject, String body, String kind) {
         try {
             abra.sendTextEmail(email, subject, body);

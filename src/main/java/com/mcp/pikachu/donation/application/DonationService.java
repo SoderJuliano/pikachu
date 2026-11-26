@@ -4,9 +4,11 @@ import com.mcp.pikachu.donation.config.DonationProperties;
 import com.mcp.pikachu.donation.domain.Donation;
 import com.mcp.pikachu.donation.domain.DonationRefs;
 import com.mcp.pikachu.donation.domain.Payment;
+import com.mcp.pikachu.donation.infra.InMemoryDonationStore;
 import com.mcp.pikachu.donation.infra.WebhookSignature;
 import com.mcp.pikachu.donation.port.DonationStore;
 import com.mcp.pikachu.donation.port.PaymentGateway;
+import com.mcp.pikachu.wowlk.application.AccountMailer;
 import com.mcp.pikachu.wowlk.domain.AccountRow;
 import com.mcp.pikachu.wowlk.domain.ApiException;
 import com.mcp.pikachu.wowlk.domain.ErrorCode;
@@ -54,7 +56,9 @@ public class DonationService {
 
     private final PaymentGateway gateway;
     private final DonationStore store;
+    private final DonationStore client64Store;
     private final WowlkRepository accounts;
+    private final AccountMailer mailer;
     private final DonationProperties props;
     private final String webhookSecret;
     private final String publicKey;
@@ -63,9 +67,16 @@ public class DonationService {
 
     public DonationService(PaymentGateway gateway, DonationStore store, WowlkRepository accounts, DonationProperties props,
                            String webhookSecret, String publicKey, Clock clock) {
+        this(gateway, store, new InMemoryDonationStore(), accounts, null, props, webhookSecret, publicKey, clock);
+    }
+
+    public DonationService(PaymentGateway gateway, DonationStore store, DonationStore client64Store, WowlkRepository accounts,
+                           AccountMailer mailer, DonationProperties props, String webhookSecret, String publicKey, Clock clock) {
         this.gateway = gateway;
         this.store = store;
+        this.client64Store = client64Store != null ? client64Store : new InMemoryDonationStore();
         this.accounts = accounts;
+        this.mailer = mailer;
         this.props = props;
         this.webhookSecret = webhookSecret;
         this.publicKey = publicKey;
@@ -81,10 +92,18 @@ public class DonationService {
                 fixed != null ? fixed : props.minAmount(), fixed != null ? fixed : props.maxAmount(), fixed, usd, props.devTools());
     }
 
+    public PublicConfig publicConfigClient64() {
+        BigDecimal fixed = props.effectiveClient64FixedAmount().setScale(2, RoundingMode.HALF_UP);
+        BigDecimal usd = props.client64UsdEquivalent() != null && props.client64UsdEquivalent().signum() > 0
+                ? props.client64UsdEquivalent().setScale(2, RoundingMode.HALF_UP) : null;
+        return new PublicConfig(props.mockGateway() ? "mock" : "mercadopago", publicKey, props.currency(),
+                fixed, fixed, fixed, usd, props.devTools());
+    }
+
     // ------------------------------------------------------------------ criacao
 
     public PaymentView createPix(AccountRow account, BigDecimal amount, String idempotencyKey) {
-        PaymentGateway.Charge charge = charge(account, amount, idempotencyKey);
+        PaymentGateway.Charge charge = charge(account, amount, idempotencyKey, false);
         Payment p = gateway.createPix(charge, props.pixExpirationMinutes());
         log.info("[donation] Pix criado: pagamento {} conta {} (id {}) valor {} status {}", p.id(), account.username(), account.id(), p.amount(), p.status());
         return view(p, null);
@@ -95,7 +114,7 @@ public class DonationService {
             throw new ApiException(ErrorCode.VALIDATION, "Card data is incomplete. Check the card and try again.");
         if (card.paymentMethodId().length() > 32 || card.token().length() > 128)
             throw new ApiException(ErrorCode.VALIDATION, "Card data is invalid.");
-        PaymentGateway.Charge charge = charge(account, amount, idempotencyKey);
+        PaymentGateway.Charge charge = charge(account, amount, idempotencyKey, false);
         Payment p = gateway.createCard(charge, new PaymentGateway.Card(card.token(), card.paymentMethodId(), card.issuerId(), 1,
                 card.identificationType(), digits(card.identificationNumber())));
         log.info("[donation] cartao: pagamento {} conta {} (id {}) valor {} status {} ({})", p.id(), account.username(), account.id(),
@@ -104,8 +123,30 @@ public class DonationService {
         return view(p, null);
     }
 
-    private PaymentGateway.Charge charge(AccountRow account, BigDecimal rawAmount, String idempotencyKey) {
-        BigDecimal amount = validAmount(rawAmount);
+    public PaymentView createClient64Pix(AccountRow account, String idempotencyKey) {
+        PaymentGateway.Charge charge = charge(account, null, idempotencyKey, true);
+        Payment p = gateway.createPix(charge, props.pixExpirationMinutes());
+        log.info("[donation-64] Pix criado: pagamento {} conta {} (id {}) valor {} status {}", p.id(), account.username(), account.id(), p.amount(), p.status());
+        return view(p, null);
+    }
+
+    public PaymentView createClient64Card(AccountRow account, PaymentGateway.Card card, String idempotencyKey) {
+        if (card == null || blank(card.token()) || blank(card.paymentMethodId()))
+            throw new ApiException(ErrorCode.VALIDATION, "Card data is incomplete. Check the card and try again.");
+        if (card.paymentMethodId().length() > 32 || card.token().length() > 128)
+            throw new ApiException(ErrorCode.VALIDATION, "Card data is invalid.");
+        PaymentGateway.Charge charge = charge(account, null, idempotencyKey, true);
+        Payment p = gateway.createCard(charge, new PaymentGateway.Card(card.token(), card.paymentMethodId(), card.issuerId(), 1,
+                card.identificationType(), digits(card.identificationNumber())));
+        log.info("[donation-64] cartao: pagamento {} conta {} (id {}) valor {} status {} ({})", p.id(), account.username(), account.id(),
+                p.amount(), p.status(), p.statusDetail());
+        return view(p, null);
+    }
+
+    private PaymentGateway.Charge charge(AccountRow account, BigDecimal rawAmount, String idempotencyKey, boolean client64) {
+        BigDecimal amount = client64
+                ? props.effectiveClient64FixedAmount().setScale(2, RoundingMode.HALF_UP)
+                : validAmount(rawAmount);
         long wait = createPerAccount.hit("acc:" + account.id());
         if (wait > 0) throw new ApiException(ErrorCode.RATE_LIMITED, "Too many payment attempts. Please wait a few minutes.", wait);
         String payerEmail = !blank(props.testPayerEmail()) ? props.testPayerEmail() : account.email();
@@ -115,9 +156,13 @@ public class DonationService {
         Map<String, String> metadata = Map.of(
                 "account_id", String.valueOf(account.id()),
                 "username", account.username(),
-                "email", account.email() == null ? "" : account.email());
-        return new PaymentGateway.Charge(amount, props.description(), payerEmail, DonationRefs.forAccount(account.id()),
-                metadata, "wowlk-" + account.id() + "-" + key);
+                "email", account.email() == null ? "" : account.email(),
+                "campaign", client64 ? "wowsixtyfordev" : "donation");
+        String description = client64 ? props.client64Description() : props.description();
+        String externalRef = client64 ? DonationRefs.forClient64(account.id()) : DonationRefs.forAccount(account.id());
+        String idemPrefix = client64 ? "wowsixtyfor-" : "wowlk-";
+        return new PaymentGateway.Charge(amount, description, payerEmail, externalRef,
+                metadata, idemPrefix + account.id() + "-" + key);
     }
 
     BigDecimal validAmount(BigDecimal raw) {
@@ -138,8 +183,16 @@ public class DonationService {
     // ------------------------------------------------------------------ consulta (o site faz polling)
 
     public PaymentView status(AccountRow account, String paymentId) {
+        return statusForStore(account, paymentId, store, false);
+    }
+
+    public PaymentView statusClient64(AccountRow account, String paymentId) {
+        return statusForStore(account, paymentId, client64Store, true);
+    }
+
+    private PaymentView statusForStore(AccountRow account, String paymentId, DonationStore targetStore, boolean client64) {
         if (blank(paymentId) || !paymentId.matches("[A-Za-z0-9_-]{1,64}")) throw new ApiException(ErrorCode.NOT_FOUND, "Payment not found.");
-        Optional<Donation> recorded = store.findByPaymentId(paymentId);
+        Optional<Donation> recorded = targetStore.findByPaymentId(paymentId);
         if (recorded.isPresent()) {
             Donation d = recorded.get();
             if (d.accountId() != account.id()) throw new ApiException(ErrorCode.NOT_FOUND, "Payment not found.");
@@ -147,11 +200,11 @@ public class DonationService {
                     true, d.paidAt(), d.recordedAt(), null);
         }
         Payment p = gateway.fetch(paymentId)
-                .filter(x -> Long.valueOf(account.id()).equals(x.accountId()))
+                .filter(x -> x.isClient64() == client64 && Long.valueOf(account.id()).equals(x.accountId()))
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND, "Payment not found."));
         if (p.approved()) {
             confirm(paymentId);
-            Optional<Donation> newlyRecorded = store.findByPaymentId(paymentId);
+            Optional<Donation> newlyRecorded = targetStore.findByPaymentId(paymentId);
             if (newlyRecorded.isPresent()) {
                 Donation d = newlyRecorded.get();
                 return new PaymentView(d.paymentId(), Payment.APPROVED, "accredited", d.method(), d.amount(), d.currency(),
@@ -163,6 +216,11 @@ public class DonationService {
 
     public SupporterView supporter(AccountRow account) {
         List<Donation> list = store.findByAccount(account.id());
+        return new SupporterView(!list.isEmpty(), list.isEmpty() ? null : list.getFirst().paidAt(), list.size());
+    }
+
+    public SupporterView client64Supporter(AccountRow account) {
+        List<Donation> list = client64Store.findByAccount(account.id());
         return new SupporterView(!list.isEmpty(), list.isEmpty() ? null : list.getFirst().paidAt(), list.size());
     }
 
@@ -216,11 +274,20 @@ public class DonationService {
         Instant now = clock.instant();
         Donation d = new Donation(p.id(), accountId, username, email, p.amount(), p.currency(), p.method(),
                 p.dateApproved() != null ? p.dateApproved() : now, now, p.liveMode());
-        boolean inserted = store.saveIfAbsent(d);
-        if (inserted)
-            log.info("[donation] DOACAO REGISTRADA: pagamento {} conta {} (id {}) {} {} via {} pago em {}", p.id(), username, accountId,
+        boolean client64 = p.isClient64();
+        DonationStore targetStore = client64 ? client64Store : store;
+        boolean inserted = targetStore.saveIfAbsent(d);
+        if (inserted) {
+            log.info("[{}] DOACAO REGISTRADA: pagamento {} conta {} (id {}) {} {} via {} pago em {}",
+                    client64 ? "donation-64" : "donation", p.id(), username, accountId,
                     p.amount(), p.currency(), p.method(), d.paidAt());
-        else log.info("[donation] webhook repetido: pagamento {} ja registrado", p.id());
+            if (client64 && mailer != null && !blank(email)) {
+                boolean pt = "pix".equalsIgnoreCase(p.method()) || prefersPortuguese(accountId);
+                mailer.sendClient64DonationThanks(email, username, pt);
+            }
+        } else {
+            log.info("[{}] webhook repetido: pagamento {} ja registrado", client64 ? "donation-64" : "donation", p.id());
+        }
         return inserted ? WebhookOutcome.RECORDED : WebhookOutcome.ALREADY_RECORDED;
     }
 
@@ -245,6 +312,14 @@ public class DonationService {
         } catch (RuntimeException e) {
             log.warn("[donation] nao consegui ler a conta {} no banco do jogo: {}", id, e.toString());
             return Optional.empty();
+        }
+    }
+
+    private boolean prefersPortuguese(long accountId) {
+        try {
+            return accounts != null && "ptBR".equalsIgnoreCase(accounts.findAccountLanguage(accountId));
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 

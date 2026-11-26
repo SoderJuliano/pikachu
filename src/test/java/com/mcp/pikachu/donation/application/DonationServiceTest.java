@@ -7,6 +7,7 @@ import com.mcp.pikachu.donation.infra.InMemoryDonationStore;
 import com.mcp.pikachu.donation.infra.MockPaymentGateway;
 import com.mcp.pikachu.donation.infra.WebhookSignature;
 import com.mcp.pikachu.donation.port.PaymentGateway;
+import com.mcp.pikachu.wowlk.application.AccountMailer;
 import com.mcp.pikachu.wowlk.domain.AccountRow;
 import com.mcp.pikachu.wowlk.domain.ApiException;
 import com.mcp.pikachu.wowlk.domain.ErrorCode;
@@ -20,7 +21,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.*;
 
 class DonationServiceTest {
 
@@ -40,7 +41,7 @@ class DonationServiceTest {
     static DonationProperties props(String testPayer, BigDecimal fixed) {
         return new DonationProperties(true, "mock", "memory", true, "https://api.mercadopago.com", "", testPayer,
                 "BRL", new BigDecimal("5"), new BigDecimal("1000"), fixed, new BigDecimal("5.04"),
-                30, "desc", "CLASSICPLUS");
+                30, "desc", "CLASSICPLUS", new BigDecimal("99.90"), new BigDecimal("16.82"), "desc64");
     }
 
     @Test
@@ -173,5 +174,54 @@ class DonationServiceTest {
         gateway.approve(pix.id());
         service.simulateWebhook(pix.id());
         assertEquals("arthas@test.com", store.findByPaymentId(pix.id()).orElseThrow().email());
+    }
+
+    @Test
+    void client64DonationSavesInSeparateStoreAndSendsThankYouEmailOnce() {
+        InMemoryDonationStore store64 = new InMemoryDonationStore();
+        AccountMailer mailer = mock(AccountMailer.class);
+        service = new DonationService(gateway, store, store64, mock(WowlkRepository.class), mailer, props("", new BigDecimal("29.90")), SECRET, "pk", clock);
+
+        var cfg = service.publicConfigClient64();
+        assertEquals(new BigDecimal("99.90"), cfg.fixedAmount());
+        assertEquals(new BigDecimal("16.82"), cfg.usdEquivalent());
+
+        var pix = service.createClient64Pix(ARTHAS, "c64-1");
+        assertEquals(new BigDecimal("99.90"), pix.amount());
+        assertFalse(pix.recorded());
+
+        // Pagamento 64-bit nao aparece no endpoint tradicional nem na tabela donation
+        assertThrows(ApiException.class, () -> service.status(ARTHAS, pix.id()));
+
+        gateway.approve(pix.id());
+        assertEquals(WebhookOutcome.RECORDED, service.simulateWebhook(pix.id()));
+        assertEquals(WebhookOutcome.ALREADY_RECORDED, service.simulateWebhook(pix.id()));
+
+        // Gravado em wowsixtyfordev (store64) e NAO em donation (store)
+        assertTrue(store.findByPaymentId(pix.id()).isEmpty());
+        assertFalse(service.supporter(ARTHAS).supporter());
+        Donation saved = store64.findByPaymentId(pix.id()).orElseThrow();
+        assertEquals(7, saved.accountId());
+        assertEquals("ARTHAS", saved.username());
+        assertEquals("arthas@test.com", saved.email());
+        assertEquals(new BigDecimal("99.90"), saved.amount());
+        assertTrue(service.client64Supporter(ARTHAS).supporter());
+        assertTrue(service.statusClient64(ARTHAS, pix.id()).recorded());
+
+        // E-mail enviado exatamente 1 vez (mesmo com webhook repetido)
+        verify(mailer, times(1)).sendClient64DonationThanks("arthas@test.com", "ARTHAS", true);
+    }
+
+    @Test
+    void client64CardInternationalSendsEnglishThankYouEmail() {
+        InMemoryDonationStore store64 = new InMemoryDonationStore();
+        AccountMailer mailer = mock(AccountMailer.class);
+        service = new DonationService(gateway, store, store64, mock(WowlkRepository.class), mailer, props("", new BigDecimal("29.90")), SECRET, "pk", clock);
+
+        var card = service.createClient64Card(JAINA, new PaymentGateway.Card("mock-APRO", "master", null, 1, null, null), "c64-card");
+        assertEquals(new BigDecimal("99.90"), card.amount());
+        assertEquals(WebhookOutcome.RECORDED, service.simulateWebhook(card.id()));
+
+        verify(mailer, times(1)).sendClient64DonationThanks("jaina@test.com", "JAINA", false);
     }
 }

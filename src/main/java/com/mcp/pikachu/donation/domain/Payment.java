@@ -39,6 +39,11 @@ public record Payment(
         return DonationRefs.accountIdOf(externalReference);
     }
 
+    /** True quando o pagamento pertence a campanha do cliente 64-bit ({@code wowsixtyfordev}). */
+    public boolean isClient64() {
+        return DonationRefs.isClient64(externalReference);
+    }
+
     public String meta(String key) {
         return metadata == null ? null : metadata.get(key);
     }

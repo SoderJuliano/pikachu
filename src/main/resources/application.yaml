@@ -66,4 +66,6 @@ donation:
   max-amount: 1000
   fixed-amount: 29.90           # valor unico da doacao (BRL); 0 = valor livre entre min e max
   usd-equivalent: 5.04          # so exibicao fora do Brasil (cambio de 22/11/2026: 1 BRL = 0,1684 USD)
+  client64-fixed-amount: 99.90  # valor unico da doacao do cliente 64-bit (wowlk_site.wowsixtyfordev)
+  client64-usd-equivalent: 16.82 # so exibicao fora do Brasil (cambio de 22/11/2026)
   pix-expiration-minutes: 30

@@ -37,7 +37,10 @@ public record DonationProperties(
         @DefaultValue("0") BigDecimal usdEquivalent,
         @DefaultValue("30") int pixExpirationMinutes,
         @DefaultValue("WoW Classic Plus LK - apoio ao servidor") String description,
-        @DefaultValue("CLASSICPLUS") String statementDescriptor
+        @DefaultValue("CLASSICPLUS") String statementDescriptor,
+        @DefaultValue("99.90") BigDecimal client64FixedAmount,
+        @DefaultValue("16.82") BigDecimal client64UsdEquivalent,
+        @DefaultValue("WoW Classic Plus LK - 64-bit Client") String client64Description
 ) {
     public boolean mockGateway() {
         return "mock".equalsIgnoreCase(gateway);
@@ -45,6 +48,11 @@ public record DonationProperties(
 
     public boolean hasFixedAmount() {
         return fixedAmount != null && fixedAmount.signum() > 0;
+    }
+
+    public BigDecimal effectiveClient64FixedAmount() {
+        return client64FixedAmount != null && client64FixedAmount.signum() > 0
+                ? client64FixedAmount : new BigDecimal("99.90");
     }
 
     public boolean memoryStore() {
